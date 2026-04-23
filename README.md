@@ -15,14 +15,16 @@ You can do a factory reset by placing a empty file called factory_reset without 
 
 ## 🚀 Installation
 
-`install.sh` is a fully automatic installer.
+Those are fully automatic installer.
 
-### One-line SSH command
-
+# Klipper installation
 ```bash
 wget --no-check-certificate https://raw.githubusercontent.com/christianKEL/E5M-CK/main/install.sh -O /tmp/install.sh && sh /tmp/install.sh
 ```
-
+# Eddy configuration
+```bash
+wget --no-check-certificate https://raw.githubusercontent.com/christianKEL/E5M-CK/main/eddy.sh -O /tmp/eddy.sh && sh /tmp/eddy.sh
+```
 ---
 
 ## ❤️ Support
