@@ -4,4 +4,4 @@ Beta version, do not install it yet.
 
 Unverified version. Use at your own risk.
 
-CR*ALITY S*CKS
+CR_ALITY S_CKS
