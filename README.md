@@ -9,9 +9,9 @@ Install.sh is a fully automatic installer.
 Install SSH command : wget --no-check-certificate https://raw.githubusercontent.com/christianKEL/E5M-CK/main/install.sh -O /tmp/install.sh && sh /tmp/install.sh
 
 
-I've spend dozens of hours on this. If you want to buy a spool of filament, a new hotend, a trip to Sidney or a new car, please donate here :
-https://www.paypal.com/donate?token=kZDS4acuPTKRlG-MzjzP2afht5uNp_-LZwX0zd0CwOrZ7GQ8kJBJEMOZYnvc4GXKlNq7Juw36RVGiR3a
+I've spend dozens of hours on this (my wife can tell...). If you want to buy a spool of filament, a new hotend, a trip to Sidney or a new car, please donate here :
 ------------------
+https://www.paypal.com/donate?token=kZDS4acuPTKRlG-MzjzP2afht5uNp_-LZwX0zd0CwOrZ7GQ8kJBJEMOZYnvc4GXKlNq7Juw36RVGiR3a
 
 Here is my website with some other tips on the Ender 5 Max :
 https://e5mdocumentation.kinsta.cloud/
@@ -24,6 +24,9 @@ You may want to be in a community of Ender 5 Max users. I'm active there and oth
 You can buy the Eddy here : https://biqu.equipment/products/bigtreetech-eddy
 
 You can print a Nebula horizontal holder for Guppy Screen here : https://www.crealitycloud.com/model-folder/8294565794?id=69bd23091a225a24eaf224de&type=1
+
+You can print the Eddy mount (beta) used in this project here : https://www.crealitycloud.com/model-folder/8294565794?id=69bd23091a225a24eaf224de&type=1
+
 
 
 THANKS TO :
