@@ -9,6 +9,7 @@ The memos in this repository explain how the shipped binary files were compiled.
 ## ⚠️ Beta version
 
 **Do not install it if you have no brain to fix/mod/custom.**
+You can do a factory reset by placing a empty file called factory_reset without extension on a FAT32 formated USB Key. Plug the USB key, turn the power on and you will be again on the factory Creality Firmeware.
 
 ---
 
