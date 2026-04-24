@@ -13,9 +13,8 @@ You can do a factory reset by placing a empty file called factory_reset without 
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation and configurations
 
-Those are fully automatic installer.
 
 # Klipper installation
 ```bash
@@ -26,7 +25,7 @@ wget --no-check-certificate https://raw.githubusercontent.com/christianKEL/E5M-C
 wget --no-check-certificate https://raw.githubusercontent.com/christianKEL/E5M-CK/main/eddy.sh -O /tmp/eddy.sh && sh /tmp/eddy.sh
 ```
 
-# Switch to Creality Fork to do the Input Shaping
+# Switch temporary to Creality Fork to do the Input Shaping and switch back to Klipper Mainline
 ```bash
 wget --no-check-certificate https://raw.githubusercontent.com/christianKEL/E5M-CK/main/switch.sh -O /tmp/switch.sh && sh /tmp/switch.sh
 ```
