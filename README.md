@@ -25,6 +25,11 @@ wget --no-check-certificate https://raw.githubusercontent.com/christianKEL/E5M-C
 ```bash
 wget --no-check-certificate https://raw.githubusercontent.com/christianKEL/E5M-CK/main/eddy.sh -O /tmp/eddy.sh && sh /tmp/eddy.sh
 ```
+
+# Switch to Creality Fork to do the Input Shaping
+```bash
+wget --no-check-certificate https://raw.githubusercontent.com/christianKEL/E5M-CK/main/switch.sh -O /tmp/switch.sh && sh /tmp/switch.sh
+```
 ---
 
 ## ❤️ Support
