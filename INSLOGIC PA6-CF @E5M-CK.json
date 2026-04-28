@@ -1,0 +1,63 @@
+{
+    "compatible_printers": [
+        "Creality Ender-5 Max 0.4 nozzle"
+    ],
+    "enable_pressure_advance": [
+        "1"
+    ],
+    "eng_plate_temp": [
+        "90"
+    ],
+    "eng_plate_temp_initial_layer": [
+        "90"
+    ],
+    "filament_density": [
+        "1.2"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "filament_flow_ratio": [
+        "1"
+    ],
+    "filament_max_volumetric_speed": [
+        "6"
+    ],
+    "filament_settings_id": [
+        "INSLOGIC PA6-CF @CK"
+    ],
+    "filament_vendor": [
+        "INSLOGIC"
+    ],
+    "from": "User",
+    "hot_plate_temp": [
+        "90"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "90"
+    ],
+    "inherits": "Bambu PA6-CF @System",
+    "name": "INSLOGIC PA6-CF @CK",
+    "nozzle_temperature": [
+        "290"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "290"
+    ],
+    "pressure_advance": [
+        "0.04"
+    ],
+    "textured_cool_plate_temp": [
+        "90"
+    ],
+    "textured_cool_plate_temp_initial_layer": [
+        "90"
+    ],
+    "textured_plate_temp": [
+        "90"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "90"
+    ],
+    "version": "2.3.2.51"
+}

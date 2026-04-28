@@ -1,0 +1,24 @@
+{
+    "compatible_printers": [
+        "Creality Ender-5 Max 0.4 nozzle"
+    ],
+    "enable_pressure_advance": [
+        "1"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "filament_flow_ratio": [
+        "0.95"
+    ],
+    "filament_settings_id": [
+        "SUNLU PLA+ @System - Copie"
+    ],
+    "from": "User",
+    "inherits": "SUNLU PLA+ @System",
+    "name": "SUNLU PLA+ @System - Copie",
+    "pressure_advance": [
+        "0.058"
+    ],
+    "version": "2.3.2.51"
+}

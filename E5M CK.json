@@ -1,0 +1,278 @@
+{
+    "adaptive_bed_mesh_margin": "0",
+    "auxiliary_fan": "0",
+    "bbl_use_printhost": "0",
+    "bed_custom_model": "",
+    "bed_custom_texture": "",
+    "bed_exclude_area": [
+        "0x0"
+    ],
+    "bed_mesh_max": "99999,99999",
+    "bed_mesh_min": "-99999,-99999",
+    "bed_mesh_probe_distance": "50,50",
+    "bed_temperature_formula": "by_highest_temp",
+    "before_layer_change_gcode": ";BEFORE_LAYER_CHANGE\n;[layer_z]\nG92 E0\n",
+    "best_object_pos": "0.5,0.5",
+    "change_extrusion_role_gcode": "",
+    "change_filament_gcode": "PAUSE",
+    "cooling_tube_length": "0",
+    "cooling_tube_retraction": "0",
+    "default_bed_type": "",
+    "default_filament_profile": [
+        "Creality Hyper PLA @Ender-5Max-all"
+    ],
+    "default_nozzle_volume_type": [
+        "Standard"
+    ],
+    "default_print_profile": "0.2mm Standard @Creality Ender-5 Max 0.4 nozzle",
+    "deretraction_speed": [
+        "50"
+    ],
+    "disable_m73": "0",
+    "emit_machine_limits_to_gcode": "1",
+    "enable_filament_ramming": "1",
+    "enable_long_retraction_when_cut": "0",
+    "enable_power_loss_recovery": "printer_configuration",
+    "extra_loading_move": "0",
+    "extruder_clearance_height_to_lid": "120",
+    "extruder_clearance_height_to_rod": "35",
+    "extruder_clearance_radius": "85",
+    "extruder_colour": [
+        "#FCE94F"
+    ],
+    "extruder_offset": [
+        "0x0"
+    ],
+    "extruder_printable_area": [],
+    "extruder_printable_height": [
+        "0"
+    ],
+    "extruder_type": [
+        "Direct Drive"
+    ],
+    "extruder_variant_list": [
+        "Direct Drive Standard"
+    ],
+    "fan_kickstart": "0",
+    "fan_speedup_overhangs": "1",
+    "fan_speedup_time": "0",
+    "file_start_gcode": "",
+    "from": "User",
+    "gcode_flavor": "klipper",
+    "grab_length": [
+        "0"
+    ],
+    "head_wrap_detect_zone": [],
+    "high_current_on_filament_swap": "0",
+    "host_type": "octoprint",
+    "inherits": "Creality Ender-5 Max 0.4 nozzle",
+    "layer_change_gcode": "",
+    "long_retractions_when_cut": [
+        "0"
+    ],
+    "machine_end_gcode": "G91 ;Relative positionning \nG1 E-2 F2700 ;Retract a bit \nG1 E-2 Z0.2 F2400 ;Retract and raise Z \n \nG1 Z5 ;Raise Z more \nG90 ;Absolute positionning \n \nG1 X395 Y395 F6000 ;Present print \nM106 S0 ;Turn-off fan \nM104 S0 ;Turn-off hotend \nM140 S0 ;Turn-off bed \n \nM84",
+    "machine_load_filament_time": "11",
+    "machine_max_acceleration_e": [
+        "30000",
+        "30000"
+    ],
+    "machine_max_acceleration_extruding": [
+        "50000",
+        "50000"
+    ],
+    "machine_max_acceleration_retracting": [
+        "50000",
+        "50000"
+    ],
+    "machine_max_acceleration_travel": [
+        "50000",
+        "50000"
+    ],
+    "machine_max_acceleration_x": [
+        "6500",
+        "50000"
+    ],
+    "machine_max_acceleration_y": [
+        "6500",
+        "50000"
+    ],
+    "machine_max_acceleration_z": [
+        "1000",
+        "1000"
+    ],
+    "machine_max_jerk_e": [
+        "100",
+        "100"
+    ],
+    "machine_max_jerk_x": [
+        "100",
+        "100"
+    ],
+    "machine_max_jerk_y": [
+        "100",
+        "100"
+    ],
+    "machine_max_jerk_z": [
+        "0.4",
+        "0.4"
+    ],
+    "machine_max_junction_deviation": [
+        "0.01"
+    ],
+    "machine_max_speed_e": [
+        "1000",
+        "1000"
+    ],
+    "machine_max_speed_x": [
+        "1000",
+        "1000"
+    ],
+    "machine_max_speed_y": [
+        "1000",
+        "1000"
+    ],
+    "machine_max_speed_z": [
+        "30",
+        "30"
+    ],
+    "machine_min_extruding_rate": [
+        "0",
+        "0"
+    ],
+    "machine_min_travel_rate": [
+        "0",
+        "0"
+    ],
+    "machine_pause_gcode": "PAUSE",
+    "machine_start_gcode": "; ═══════════════════════════════════════════════════════════\n; E5M-CK Start G-code — Tap-then-scan (BTT Eddy)\n; ═══════════════════════════════════════════════════════════\n\n; --- Reset état ---\nSET_GCODE_OFFSET Z=0\nBED_MESH_CLEAR\nG92 E0\nM220 S100\nM221 S100\n\n; --- Chauffe bed + pré-chauffe buse à 140°C (anti-ooze pour tap) ---\nM140 S{first_layer_bed_temperature[0]}\nM104 S140\nM190 S{first_layer_bed_temperature[0]}             ; attend bed à cible\nM109 S140                                          ; attend buse à 140°C stable\n\n; --- Soak thermique pour stabiliser le coil Eddy ---\nG4 P180000                                         ; 3 min (ajuster si besoin)\n\n; --- Homing complet (homing.cfg fait déjà un tap final post-G28 Z) ---\nG28\n\n; --- Nettoyage buse sur brosse (finit à 140°C) ---\nNOZZLE_CLEAR_ON_BRUSH\n\n; --- Tap-then-scan au centre du bed ---\nG90\nG1 X200 Y200 F6000\nG1 Z10 F600\nSET_SCAN_FROM_TAP                                  ; tap + scan + compensation\n\n; --- Bed mesh adaptatif scan rapide ---\nBED_MESH_CALIBRATE METHOD=rapid_scan\n\n; --- Montée en température finale ---\nG1 Z5 F600\nG1 X-1.0 Y120 Z0.28 F5000.0\nM104 S{first_layer_temperature[0]}\nM109 S{first_layer_temperature[0]}                 ; attend buse à temp impression\n\n; --- Première couche : ajustement fin si besoin ---\nSET_GCODE_OFFSET Z_ADJUST=0.164 MOVE=0            ; si trop crushed\n\n; --- Prime line ---\nG92 E0\nG1 X-1.0 Y120 Z0.28 F5000.0\nG1 X-1.0 Y245.0 Z0.28 F1500.0 E7\nG1 X-0.6 Y245.0 Z0.28 F5000.0\nG1 X-0.6 Y120 Z0.28 F1500.0 E15\nG92 E0\nG1 E-1.0 F1800\nG1 Z2.0 F3000\nG1 E0.0 F1800",
+    "machine_tool_change_time": "0",
+    "machine_unload_filament_time": "0",
+    "manual_filament_change": "1",
+    "master_extruder_id": "1",
+    "max_layer_height": [
+        "0.36"
+    ],
+    "max_resonance_avoidance_speed": "120",
+    "min_layer_height": [
+        "0.08"
+    ],
+    "min_resonance_avoidance_speed": "70",
+    "name": "E5M CK",
+    "nozzle_diameter": [
+        "0.4"
+    ],
+    "nozzle_flush_dataset": [
+        "0"
+    ],
+    "nozzle_height": "2.5",
+    "nozzle_hrc": "0",
+    "nozzle_type": [
+        "brass"
+    ],
+    "nozzle_volume": [
+        "0"
+    ],
+    "parking_pos_retraction": "0",
+    "pellet_modded_printer": "0",
+    "physical_extruder_map": [
+        "0"
+    ],
+    "preferred_orientation": "0",
+    "printable_area": [
+        "0x0",
+        "405x0",
+        "405x405",
+        "0x405"
+    ],
+    "printable_height": "400",
+    "printer_agent": "",
+    "printer_extruder_id": [
+        "1"
+    ],
+    "printer_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "printer_model": "Creality Ender-5 Max",
+    "printer_notes": "",
+    "printer_settings_id": "E5M CK",
+    "printer_structure": "i3",
+    "printer_technology": "FFF",
+    "printer_variant": "0.4",
+    "printhost_authorization_type": "key",
+    "printhost_ssl_ignore_revoke": "0",
+    "printing_by_object_gcode": "",
+    "purge_in_prime_tower": "1",
+    "resonance_avoidance": "0",
+    "retract_before_wipe": [
+        "100%"
+    ],
+    "retract_length_toolchange": [
+        "0"
+    ],
+    "retract_lift_above": [
+        "0"
+    ],
+    "retract_lift_below": [
+        "399"
+    ],
+    "retract_lift_enforce": [
+        "All Surfaces"
+    ],
+    "retract_restart_extra": [
+        "0"
+    ],
+    "retract_restart_extra_toolchange": [
+        "0"
+    ],
+    "retract_when_changing_layer": [
+        "1"
+    ],
+    "retraction_distances_when_cut": [
+        "18"
+    ],
+    "retraction_length": [
+        "0.8"
+    ],
+    "retraction_minimum_travel": [
+        "0.5"
+    ],
+    "retraction_speed": [
+        "50"
+    ],
+    "scan_first_layer": "0",
+    "silent_mode": "0",
+    "single_extruder_multi_material": "1",
+    "support_air_filtration": "0",
+    "support_chamber_temp_control": "0",
+    "support_multi_bed_types": "1",
+    "support_object_skip_flush": "0",
+    "template_custom_gcode": "",
+    "thumbnails": "96x96/PNG, 300x300/PNG",
+    "thumbnails_format": "PNG",
+    "time_cost": "0",
+    "time_lapse_gcode": "",
+    "travel_slope": [
+        "3"
+    ],
+    "upward_compatible_machine": [],
+    "use_firmware_retraction": "0",
+    "use_relative_e_distances": "1",
+    "version": "2.3.2.51",
+    "wipe": [
+        "1"
+    ],
+    "wipe_distance": [
+        "1"
+    ],
+    "wipe_tower_type": "type2",
+    "wrapping_detection_gcode": "",
+    "wrapping_detection_layers": "20",
+    "wrapping_exclude_area": [],
+    "z_hop": [
+        "0.4"
+    ],
+    "z_hop_types": [
+        "Slope Lift"
+    ],
+    "z_offset": "0"
+}

@@ -1,0 +1,24 @@
+{
+    "compatible_printers": [
+        "Creality Ender-5 Max 0.4 nozzle"
+    ],
+    "default_filament_colour": [
+        "#FF8080"
+    ],
+    "enable_pressure_advance": [
+        "1"
+    ],
+    "filament_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "filament_settings_id": [
+        "Polymaker HT-PLA-GF @System - Copie"
+    ],
+    "from": "User",
+    "inherits": "Polymaker HT-PLA-GF @System",
+    "name": "Polymaker HT-PLA-GF @System - Copie",
+    "pressure_advance": [
+        "0.034"
+    ],
+    "version": "2.3.2.60"
+}
