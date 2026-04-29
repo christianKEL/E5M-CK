@@ -40,7 +40,7 @@ BED_MESH_CALIBRATE METHOD=rapid_scan
 RESPOND TYPE=command MSG="Nozzle purging"
 ; --- Montée en température finale (AVANT de descendre à Z=0.28) ---
 G1 Z5 F600
-G1 X-1.0 Y120 F1500.0
+G1 X-1.0 Y120 F5000.0
 M104 S{first_layer_temperature[0]}
 M109 S{first_layer_temperature[0]}                 ; attend buse à temp impression
 
