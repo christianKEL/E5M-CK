@@ -1,0 +1,61 @@
+; ═══════════════════════════════════════════════════════════
+; E5M-CK Start G-code — Tap-then-scan (BTT Eddy)
+; ═══════════════════════════════════════════════════════════
+
+; --- Reset état ---
+SET_GCODE_OFFSET Z=0
+BED_MESH_CLEAR
+G92 E0
+M220 S100
+M221 S100
+RESPOND TYPE=command MSG="Heating"
+; --- Chauffe bed + pré-chauffe buse à 140°C (anti-ooze pour tap) ---
+M140 S{first_layer_bed_temperature[0]}
+M104 S140
+M190 S{first_layer_bed_temperature[0]}             ; attend bed à cible
+M109 S140                                          ; attend buse à 140°C stable
+RESPOND TYPE=command MSG="Heat soaking 5 minutes"
+; --- Soak thermique pour stabiliser le coil Eddy ---
+G4 P300000                                         ; 5 min (300000 ms)
+
+RESPOND TYPE=command MSG="Homing"
+; --- Homing complet (homing.cfg fait déjà un tap final post-G28 Z) ---
+G28
+
+RESPOND TYPE=command MSG="Nozzle cleaning"
+; --- Nettoyage buse sur brosse (finit à 140°C) ---
+NOZZLE_CLEAR_ON_BRUSH
+
+RESPOND TYPE=command MSG="Z-Offset setting"
+; --- Tap-then-scan au centre du bed ---
+G90
+G1 X200 Y200 F6000
+G1 Z10 F600                                        ; LIFT 10mm AVANT TAP (règle d'or)
+SET_SCAN_FROM_TAP                                  ; tap + scan + compensation gcode_offset
+
+RESPOND TYPE=command MSG="Bed Mesh calibrating"
+; --- Bed mesh complet scan rapide ---
+BED_MESH_CALIBRATE METHOD=rapid_scan
+
+RESPOND TYPE=command MSG="Nozzle purging"
+; --- Montée en température finale (AVANT de descendre à Z=0.28) ---
+G1 Z5 F600
+G1 X-1.0 Y120 F1500.0
+M104 S{first_layer_temperature[0]}
+M109 S{first_layer_temperature[0]}                 ; attend buse à temp impression
+
+; --- Prime line ---
+G92 E0
+G1 X-1.0 Y120 Z0.28 F5000.0
+G1 X-1.0 Y245.0 Z0.28 F1500.0 E7
+G1 X-0.6 Y245.0 Z0.28 F5000.0
+G1 X-0.6 Y120 Z0.28 F1500.0 E15
+G92 E0
+G1 E-1.0 F1800
+G1 Z2.0 F3000
+G1 E0.0 F1800
+
+; --- Première couche : ajustement fin si besoin ---
+;SET_GCODE_OFFSET Z_ADJUST=0.05 MOVE=1             ; si trop crushed (positif = relève)
+;SET_GCODE_OFFSET Z_ADJUST=-0.05 MOVE=1            ; si pas assez collé (négatif = approche)
+RESPOND TYPE=command MSG="Printing"
