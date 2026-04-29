@@ -1,0 +1,13 @@
+G91 ;Relative positionning 
+G1 E-2 F2700 ;Retract a bit 
+G1 E-2 Z0.2 F2400 ;Retract and raise Z 
+ 
+G1 Z5 ;Raise Z more 
+G90 ;Absolute positionning 
+ 
+G1 X395 Y395 F6000 ;Present print 
+M106 S0 ;Turn-off fan 
+M104 S0 ;Turn-off hotend 
+M140 S0 ;Turn-off bed 
+ 
+M84
