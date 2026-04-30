@@ -1,0 +1,65 @@
+{
+  "config_path": "/usr/data/guppyscreen/guppyconfig.json",
+  "default_printer": "k1",
+  "display_rotate": 0,
+  "display_sleep_sec": -1,
+  "guppy_init_script": "/etc/init.d/S99guppyscreen",
+  "invert_z_icon": null,
+  "log_path": "/usr/data/printer_data/logs/guppyscreen.log",
+  "printers": {
+    "k1": {
+      "default_macros": {
+        "cooldown": "SET_HEATER_TEMPERATURE HEATER=extruder TARGET=0\nSET_HEATER_TEMPERATURE HEATER=heater_bed TARGET=0",
+        "load_filament": "LOAD_FILAMENT",
+        "unload_filament": "UNLOAD_FILAMENT"
+      },
+      "fans": [
+        {
+          "display_name": "Toolhead Fan",
+          "id": "output_pin fan0"
+        },
+        {
+          "display_name": "Back Fan",
+          "id": "output_pin fan1"
+        }
+      ],
+      "leds": [
+        {
+          "display_name": "Light",
+          "id": "output_pin light_pin"
+        }
+      ],
+      "log_level": "debug",
+      "monitored_sensors": [
+        {
+          "color": "red",
+          "controllable": true,
+          "display_name": "Extruder",
+          "id": "extruder"
+        },
+        {
+          "color": "purple",
+          "controllable": true,
+          "display_name": "Bed",
+          "id": "heater_bed"
+        }
+      ],
+      "moonraker_api_key": false,
+      "moonraker_host": "127.0.0.1",
+      "moonraker_port": 7125
+    }
+  },
+  "prompt_emergency_stop": true,
+  "theme": "red",
+  "thumbnail_path": "/usr/data/printer_data/thumbnails",
+  "touch_calibrated": true,
+  "touch_calibration_coeff": [
+    0.1324576437473297,
+    -0.005708698648959398,
+    -25.493188858032227,
+    -0.0003665452532004565,
+    0.07215520739555359,
+    -11.806469917297363
+  ],
+  "wpa_supplicant": "/var/run/wpa_supplicant"
+}
