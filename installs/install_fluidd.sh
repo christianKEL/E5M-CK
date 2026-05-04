@@ -239,8 +239,10 @@ step_download() {
 step_validate() {
     log_step "2" "Validate archive"
 
+    # BusyBox unzip doesn't support -t (test mode), so we use -l (list)
+    # which fails with non-zero exit if the zip is corrupt or unreadable.
     log_info "Testing zip integrity..."
-    if ! unzip -t "$TMP_ZIP" >/dev/null 2>&1; then
+    if ! unzip -l "$TMP_ZIP" >/dev/null 2>&1; then
         log_error "Archive is corrupt or not a valid zip"
         rm -f "$TMP_ZIP"
         die "Aborting"
@@ -249,7 +251,7 @@ step_validate() {
 
     log_info "Checking expected entries..."
     # Fluidd archive must contain at least index.html at the root
-    if ! unzip -l "$TMP_ZIP" 2>/dev/null | grep -qE "^.*[[:space:]]index\.html$"; then
+    if ! unzip -l "$TMP_ZIP" 2>/dev/null | grep -qE "[[:space:]]index\.html$"; then
         log_error "index.html not found at archive root"
         rm -f "$TMP_ZIP"
         die "Archive structure unexpected — Fluidd release format may have changed"
