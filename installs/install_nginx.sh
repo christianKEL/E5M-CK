@@ -434,6 +434,16 @@ start() {
         echo "Error: $CONF not found"
         exit 1
     fi
+    # Clean up stale PID file (empty or pointing to dead process)
+    if [ -f "$PID_FILE" ]; then
+        STALE_PID=$(cat "$PID_FILE" 2>/dev/null)
+        if [ -z "$STALE_PID" ] || ! kill -0 "$STALE_PID" 2>/dev/null; then
+            rm -f "$PID_FILE"
+        else
+            echo "$NAME already running (PID $STALE_PID)"
+            exit 0
+        fi
+    fi
     # Test config before starting
     if ! "$PROG" -t -c "$CONF" >/dev/null 2>&1; then
         echo "Error: nginx config test failed"
@@ -445,22 +455,25 @@ start() {
 }
 
 stop() {
-    if [ -f "$PID_FILE" ] && kill -0 "$(cat $PID_FILE)" 2>/dev/null; then
-        echo "Stopping $NAME..."
+    PID=""
+    [ -f "$PID_FILE" ] && PID=$(cat "$PID_FILE" 2>/dev/null)
+    if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+        echo "Stopping $NAME (PID $PID)..."
         "$PROG" -c "$CONF" -s quit
         # Wait up to 5s for graceful shutdown
         for i in 1 2 3 4 5; do
-            [ -f "$PID_FILE" ] || break
+            kill -0 "$PID" 2>/dev/null || break
             sleep 1
         done
         # Force kill if still running
-        if [ -f "$PID_FILE" ]; then
-            PID=$(cat "$PID_FILE" 2>/dev/null)
-            [ -n "$PID" ] && kill -9 "$PID" 2>/dev/null
-            rm -f "$PID_FILE"
+        if kill -0 "$PID" 2>/dev/null; then
+            kill -9 "$PID" 2>/dev/null
         fi
+        rm -f "$PID_FILE"
     else
         echo "$NAME is not running"
+        # Clean up stale empty/invalid PID file
+        [ -f "$PID_FILE" ] && rm -f "$PID_FILE"
     fi
 }
 
@@ -471,18 +484,24 @@ restart() {
 }
 
 reload() {
-    if [ -f "$PID_FILE" ] && kill -0 "$(cat $PID_FILE)" 2>/dev/null; then
-        echo "Reloading $NAME..."
+    PID=""
+    [ -f "$PID_FILE" ] && PID=$(cat "$PID_FILE" 2>/dev/null)
+    if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+        echo "Reloading $NAME (PID $PID)..."
         "$PROG" -c "$CONF" -s reload
     else
         echo "$NAME not running, starting..."
+        # Clean up stale empty/invalid PID file before start
+        [ -f "$PID_FILE" ] && rm -f "$PID_FILE"
         start
     fi
 }
 
 status() {
-    if [ -f "$PID_FILE" ] && kill -0 "$(cat $PID_FILE)" 2>/dev/null; then
-        echo "$NAME is running (PID $(cat $PID_FILE))"
+    PID=""
+    [ -f "$PID_FILE" ] && PID=$(cat "$PID_FILE" 2>/dev/null)
+    if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+        echo "$NAME is running (PID $PID)"
         return 0
     else
         echo "$NAME is not running"
