@@ -23,8 +23,9 @@
 #   PROBE_EDDY_CALIBRATE_AUTO [CHIP=<name>] [PROBE_SPEED=<f>]
 #                             [ACTIVATE_RAM=0|1] [Z_REF_MAX=<f>]
 #   EDDY_APPLY_TAP_THRESHOLD [CHIP=<name>] [VALUE=<f>]
-#       Without VALUE: reads the pending value from configfile settings
-#                      and applies it to the runtime EddyTap object.
+#       Without VALUE: reads the pending value from the pending
+#                      SAVE_CONFIG block and applies it to the runtime
+#                      EddyTap object.
 #       With VALUE: applies that exact value to runtime.
 
 import logging
@@ -153,28 +154,29 @@ class ProbeEddyAutoCalibrate:
 
         eddy_tap = self._lookup_eddy_tap(chip)
 
-        # If no explicit value, read the pending value from configfile
-        # settings (which reflect both saved AND pending SAVE_CONFIG
-        # values, the latter taking priority).
+        # If no explicit value, read the pending value from the
+        # save_config_pending_items (NOT from settings, which only
+        # reflects what was on disk at boot).
         if explicit_value is None:
             section_name = 'probe_eddy_current ' + chip
             configfile = self.printer.lookup_object('configfile')
             reactor = self.printer.get_reactor()
             eventtime = reactor.monotonic()
-            settings = configfile.get_status(eventtime).get(
-                'settings', {})
-            section_settings = settings.get(section_name, {})
-            new_value = section_settings.get('tap_threshold', None)
+            cf_status = configfile.get_status(eventtime)
+            pending = cf_status.get('save_config_pending_items', {})
+            section_pending = pending.get(section_name, {})
+            new_value = section_pending.get('tap_threshold', None)
             if new_value is None:
                 raise gcmd.error(
-                    "No tap_threshold found in configfile for '%s'."
-                    " Run PROBE_EDDY_CURRENT_TAP_CALIBRATE TAP=verify"
-                    " first, or pass VALUE=<f> explicitly." % section_name)
+                    "No pending tap_threshold for '%s'. Run"
+                    " PROBE_EDDY_CURRENT_TAP_CALIBRATE TAP=verify"
+                    " first, or pass VALUE=<f> explicitly."
+                    % section_name)
             try:
                 new_value = float(new_value)
             except Exception:
                 raise gcmd.error(
-                    "Invalid tap_threshold value in configfile: %r"
+                    "Invalid pending tap_threshold value: %r"
                     % (new_value,))
         else:
             new_value = explicit_value
