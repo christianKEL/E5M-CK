@@ -1,14 +1,24 @@
 # Auto-calibration plugin for eddy current probes
 #
-# Re-runs the native PROBE_EDDY_CURRENT_CALIBRATE sequence using the
-# CURRENT toolhead position as the Z=0 reference (instead of the
-# interactive paper test). The new frequency/Z table is activated in
-# RAM immediately (no Klipper restart required).
+# Provides three commands:
 #
-# Also provides EDDY_APPLY_TAP_THRESHOLD: a complementary command to
-# activate a tap_threshold in RAM after PROBE_EDDY_CURRENT_TAP_CALIBRATE
-# TAP=verify, since native Klipper only writes the new threshold to
-# the pending SAVE_CONFIG block (no RAM update until restart).
+#   1. PROBE_EDDY_CALIBRATE_AUTO
+#      Re-runs the native PROBE_EDDY_CURRENT_CALIBRATE sequence using
+#      the CURRENT toolhead position as the Z=0 reference (instead of
+#      the interactive paper test). The new frequency/Z table is
+#      activated in RAM immediately (no Klipper restart required).
+#
+#   2. EDDY_APPLY_TAP_THRESHOLD
+#      Activate a tap_threshold value in RAM after
+#      PROBE_EDDY_CURRENT_TAP_CALIBRATE TAP=verify, since native
+#      Klipper only writes the new threshold to the pending
+#      SAVE_CONFIG block (no RAM update until restart).
+#
+#   3. EDDY_RESET_TO_CONFIG
+#      Reset RAM state of the Eddy probe to the values persisted in
+#      printer.cfg (calibrate table + tap_threshold). Use this at the
+#      start of every print to ensure a deterministic, reproducible
+#      starting state regardless of session history.
 #
 # Single responsibility: this plugin does NOT manage temperatures,
 # does NOT home, does NOT move the toolhead.
@@ -23,10 +33,7 @@
 #   PROBE_EDDY_CALIBRATE_AUTO [CHIP=<name>] [PROBE_SPEED=<f>]
 #                             [ACTIVATE_RAM=0|1] [Z_REF_MAX=<f>]
 #   EDDY_APPLY_TAP_THRESHOLD [CHIP=<name>] [VALUE=<f>]
-#       Without VALUE: reads the pending value from the pending
-#                      SAVE_CONFIG block and applies it to the runtime
-#                      EddyTap object.
-#       With VALUE: applies that exact value to runtime.
+#   EDDY_RESET_TO_CONFIG [CHIP=<name>]
 
 import logging
 from . import manual_probe
@@ -52,6 +59,12 @@ class ProbeEddyAutoCalibrate:
             desc=("Apply a tap_threshold value to the runtime EddyTap"
                   " object (workaround for native code only updating"
                   " pending SAVE_CONFIG, not RAM)."))
+        gcode.register_command(
+            'EDDY_RESET_TO_CONFIG',
+            self.cmd_EDDY_RESET_TO_CONFIG,
+            desc=("Reset RAM state of the Eddy probe to the values"
+                  " persisted in printer.cfg. Use at the start of"
+                  " every print to ensure deterministic state."))
 
     def _lookup_eddy_obj(self, chip):
         section_name = 'probe_eddy_current ' + chip
@@ -78,6 +91,23 @@ class ProbeEddyAutoCalibrate:
                 " (incompatible Klipper version?)" % chip)
         return eddy_obj.eddy_tap
 
+    def _get_section_settings(self, section_name):
+        # Read settings as parsed by Klipper at boot (includes autosave block)
+        configfile = self.printer.lookup_object('configfile')
+        reactor = self.printer.get_reactor()
+        eventtime = reactor.monotonic()
+        cf_status = configfile.get_status(eventtime)
+        return cf_status.get('settings', {}).get(section_name, {})
+
+    def _get_pending_settings(self, section_name):
+        # Read pending SAVE_CONFIG values (changes made in current session)
+        configfile = self.printer.lookup_object('configfile')
+        reactor = self.printer.get_reactor()
+        eventtime = reactor.monotonic()
+        cf_status = configfile.get_status(eventtime)
+        pending = cf_status.get('save_config_pending_items', {})
+        return pending.get(section_name, {}) or {}
+
     # ─────────────────────────────────────────────────────────
     # PROBE_EDDY_CALIBRATE_AUTO
     # ─────────────────────────────────────────────────────────
@@ -93,7 +123,6 @@ class ProbeEddyAutoCalibrate:
 
         eddy_cal = self._lookup_eddy_calibration(chip)
 
-        # ─── Pre-flight checks ───
         toolhead = self.printer.lookup_object('toolhead')
         reactor = self.printer.get_reactor()
         eventtime = reactor.monotonic()
@@ -154,17 +183,9 @@ class ProbeEddyAutoCalibrate:
 
         eddy_tap = self._lookup_eddy_tap(chip)
 
-        # If no explicit value, read the pending value from the
-        # save_config_pending_items (NOT from settings, which only
-        # reflects what was on disk at boot).
         if explicit_value is None:
             section_name = 'probe_eddy_current ' + chip
-            configfile = self.printer.lookup_object('configfile')
-            reactor = self.printer.get_reactor()
-            eventtime = reactor.monotonic()
-            cf_status = configfile.get_status(eventtime)
-            pending = cf_status.get('save_config_pending_items', {})
-            section_pending = pending.get(section_name, {})
+            section_pending = self._get_pending_settings(section_name)
             new_value = section_pending.get('tap_threshold', None)
             if new_value is None:
                 raise gcmd.error(
@@ -193,6 +214,90 @@ class ProbeEddyAutoCalibrate:
             % (chip,
                ("%.3f" % old_value) if old_value is not None else "<unset>",
                new_value))
+
+    # ─────────────────────────────────────────────────────────
+    # EDDY_RESET_TO_CONFIG
+    # ─────────────────────────────────────────────────────────
+    #
+    # Resets RAM state to the values that were parsed at Klipper boot
+    # from printer.cfg (including the autosave block at the bottom).
+    # This is equivalent to a FIRMWARE_RESTART for the Eddy probe state,
+    # without the actual restart (which would break the print).
+    #
+    # Resets:
+    #   - eddy_cal.cal_freqs / cal_zpos    (the frequency/Z table)
+    #   - eddy_tap._tap_threshold          (the tap detection threshold)
+    #
+    # Does NOT reset:
+    #   - tap_z_offset                     (immutable from config)
+    #   - calibration_temp                 (read-only, drift compensation)
+    #   - reg_drive_current                (set on hardware at boot)
+
+    def cmd_EDDY_RESET_TO_CONFIG(self, gcmd):
+        chip = gcmd.get('CHIP', self.chip_name)
+        section_name = 'probe_eddy_current ' + chip
+
+        eddy_cal = self._lookup_eddy_calibration(chip)
+        eddy_tap = self._lookup_eddy_tap(chip)
+
+        settings = self._get_section_settings(section_name)
+        if not settings:
+            raise gcmd.error(
+                "No settings found for section '%s'" % section_name)
+
+        # ─── Restore frequency/Z table ────────────────────────
+        cal_str = settings.get('calibrate', None)
+        if cal_str is None:
+            gcmd.respond_info(
+                "EDDY_RESET_TO_CONFIG: no 'calibrate' field in config"
+                " — skipping table reset")
+            cal_count = 0
+        else:
+            try:
+                # Klipper stores 'calibrate' as a multiline string with format:
+                #   z1:freq1, z2:freq2, ...
+                # (whitespace and newlines included)
+                cal_pairs = []
+                for entry in cal_str.split(','):
+                    entry = entry.strip()
+                    if not entry:
+                        continue
+                    z_str, freq_str = entry.split(':', 1)
+                    cal_pairs.append([float(z_str), float(freq_str)])
+                if len(cal_pairs) < 2:
+                    raise ValueError("less than 2 calibration points")
+                eddy_cal.load_calibration(cal_pairs)
+                cal_count = len(cal_pairs)
+            except Exception as e:
+                raise gcmd.error(
+                    "EDDY_RESET_TO_CONFIG: failed to parse 'calibrate'"
+                    " field: %s" % e)
+
+        # ─── Restore tap_threshold ────────────────────────────
+        threshold_value = settings.get('tap_threshold', None)
+        old_threshold = getattr(eddy_tap, '_tap_threshold', None)
+        if threshold_value is None:
+            new_threshold_msg = "no value in config (left as %s)" % (
+                ("%.3f" % old_threshold) if old_threshold is not None
+                else "<unset>")
+        else:
+            try:
+                threshold_value = float(threshold_value)
+                if threshold_value <= 0.:
+                    raise ValueError("tap_threshold must be > 0")
+                eddy_tap._tap_threshold = threshold_value
+                new_threshold_msg = "%s -> %.3f" % (
+                    ("%.3f" % old_threshold) if old_threshold is not None
+                    else "<unset>",
+                    threshold_value)
+            except Exception as e:
+                raise gcmd.error(
+                    "EDDY_RESET_TO_CONFIG: failed to parse"
+                    " 'tap_threshold' field: %s" % e)
+
+        gcmd.respond_info(
+            "EDDY_RESET_TO_CONFIG: chip=%s table=%d points, tap_threshold %s"
+            % (chip, cal_count, new_threshold_msg))
 
 
 def load_config(config):
