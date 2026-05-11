@@ -1,0 +1,138 @@
+═══════════════════════════════════════════════════════════════════
+PATCH guppy_cmd.cfg — Ajout de la génération PNG PC-sized
+═══════════════════════════════════════════════════════════════════
+
+Fichier cible : /usr/data/printer_data/config/GuppyScreen/guppy_cmd.cfg
+
+═══════════════════════════════════════════════════════════════════
+PARTIE 1 — Ajouter 2 nouveaux gcode_shell_command (en tête de fichier)
+═══════════════════════════════════════════════════════════════════
+
+À insérer JUSTE APRÈS le bloc:
+    [gcode_shell_command guppy_belts_calibration]
+    command: /usr/data/printer_data/config/GuppyScreen/scripts/graph_belts.py
+    timeout: 600.0
+    verbose: True
+
+Ajouter:
+
+    [gcode_shell_command guppy_input_shaper_pc]
+    command: /usr/data/printer_data/config/GuppyScreen/scripts/gen_shaper_png.sh
+    timeout: 600.0
+    verbose: True
+
+    [gcode_shell_command guppy_belts_calibration_pc]
+    command: /usr/data/printer_data/config/GuppyScreen/scripts/gen_belts_png.sh
+    timeout: 600.0
+    verbose: True
+
+
+═══════════════════════════════════════════════════════════════════
+PARTIE 2 — Modifier la macro GUPPY_SHAPERS
+═══════════════════════════════════════════════════════════════════
+
+REMPLACER la macro existante par :
+
+    [gcode_macro GUPPY_SHAPERS]
+    description: Shaper Tuning + Plot Generation (GuppyScreen + PC)
+    gcode:
+      {% set x_png = params.X_PNG|default("/usr/data/printer_data/config/resonances_x.png") %}
+      {% set y_png = params.Y_PNG|default("/usr/data/printer_data/config/resonances_y.png") %}
+
+      RESPOND TYPE=command MSG='Homing'
+      G28
+      RESPOND TYPE=command MSG='Testing X Resonances'
+      TEST_RESONANCES AXIS=X NAME=x
+      M400
+      RESPOND TYPE=command MSG='Generating X Plots (GuppyScreen)'
+      RUN_SHELL_COMMAND CMD=guppy_input_shaper PARAMS="/tmp/resonances_x_x.csv -o {x_png}"
+      RESPOND TYPE=command MSG='Generating X Plot (PC size)'
+      RUN_SHELL_COMMAND CMD=guppy_input_shaper_pc PARAMS="/tmp/resonances_x_x.csv x"
+      RESPOND TYPE=command MSG='Testing Y Resonances'
+      TEST_RESONANCES AXIS=Y NAME=y
+      M400
+      RESPOND TYPE=command MSG='Generating Y Plots (GuppyScreen)'
+      RUN_SHELL_COMMAND CMD=guppy_input_shaper PARAMS="/tmp/resonances_y_y.csv -o {y_png}"
+      RESPOND TYPE=command MSG='Generating Y Plot (PC size)'
+      RUN_SHELL_COMMAND CMD=guppy_input_shaper_pc PARAMS="/tmp/resonances_y_y.csv y"
+
+CHANGEMENTS :
+  - Ajout de 2 lignes RUN_SHELL_COMMAND CMD=guppy_input_shaper_pc (une par axe)
+  - Correction du typo: "Testing X Resonances" -> "Testing Y Resonances" sur le 2e test
+  - Renommage des labels (Plots -> Plot pour la version PC)
+
+
+═══════════════════════════════════════════════════════════════════
+PARTIE 3 — Modifier la macro GUPPY_BELTS_SHAPER_CALIBRATION
+═══════════════════════════════════════════════════════════════════
+
+REMPLACER la macro existante par :
+
+    [gcode_macro GUPPY_BELTS_SHAPER_CALIBRATION]
+    description: Perform a custom half-axis test to analyze and compare the frequency profiles of individual belts on CoreXY printers (GuppyScreen + PC)
+    gcode:
+      {% set min_freq = params.FREQ_START|default(5)|float %}
+      {% set max_freq = params.FREQ_END|default(133.33)|float %}
+      {% set hz_per_sec = params.HZ_PER_SEC|default(1)|float %}
+      {% set png_out_path = params.PNG_OUT_PATH|default("/usr/data/printer_data/config/belts_calibration.png") %}
+      {% set png_width = params.PNG_WIDTH|default(8)|float %}
+      {% set png_height = params.PNG_HEIGHT|default(4.8)|float %}
+
+      TEST_RESONANCES AXIS=1,1 OUTPUT=raw_data NAME=b FREQ_START={min_freq} FREQ_END={max_freq} HZ_PER_SEC={hz_per_sec}
+      M400
+      TEST_RESONANCES AXIS=1,-1 OUTPUT=raw_data NAME=a FREQ_START={min_freq} FREQ_END={max_freq} HZ_PER_SEC={hz_per_sec}
+      M400
+      RESPOND MSG="Belts comparative frequency profile generation (GuppyScreen)..."
+      RESPOND MSG="This may take some time (3-5min)"
+      RUN_SHELL_COMMAND CMD=guppy_belts_calibration PARAMS="-w {png_width} -l {png_height} -n -o {png_out_path} -k /usr/data/klipper /tmp/raw_data_axis=1.000,-1.000,0.000_a.csv /tmp/raw_data_axis=1.000,1.000,0.000_b.csv"
+      RESPOND MSG="Generating Belts Plot (PC size)..."
+      RUN_SHELL_COMMAND CMD=guppy_belts_calibration_pc PARAMS="/tmp/raw_data_axis=1.000,-1.000,0.000_a.csv /tmp/raw_data_axis=1.000,1.000,0.000_b.csv"
+
+CHANGEMENTS :
+  - Ajout de 1 RESPOND + 1 RUN_SHELL_COMMAND pour la génération PC
+
+
+═══════════════════════════════════════════════════════════════════
+PARTIE 4 — Installation des scripts wrappers
+═══════════════════════════════════════════════════════════════════
+
+Copier les 2 fichiers fournis vers le dossier scripts GuppyScreen :
+
+    cp gen_shaper_png.sh /usr/data/printer_data/config/GuppyScreen/scripts/
+    cp gen_belts_png.sh  /usr/data/printer_data/config/GuppyScreen/scripts/
+    chmod +x /usr/data/printer_data/config/GuppyScreen/scripts/gen_shaper_png.sh
+    chmod +x /usr/data/printer_data/config/GuppyScreen/scripts/gen_belts_png.sh
+
+Vérifier :
+
+    ls -la /usr/data/printer_data/config/GuppyScreen/scripts/gen_*.sh
+
+
+═══════════════════════════════════════════════════════════════════
+PARTIE 5 — Recharger Klipper
+═══════════════════════════════════════════════════════════════════
+
+    FIRMWARE_RESTART
+
+
+═══════════════════════════════════════════════════════════════════
+VALIDATION
+═══════════════════════════════════════════════════════════════════
+
+Après FIRMWARE_RESTART, depuis Fluidd console :
+
+    GUPPY_SHAPERS
+
+ou depuis GuppyScreen, bouton Input Shaper.
+
+Attendre ~7 minutes. Vérifier :
+
+    ls -la /usr/data/printer_data/config/resonances_x.png
+    ls -la /usr/data/printer_data/config/resonances_y.png
+    ls -la /usr/data/printer_data/config/printer_calibration_graphs/
+
+Le dossier printer_calibration_graphs doit contenir 2 nouveaux PNG horodatés :
+    resonances_x_PC_SIZE_20260511_XXXXXX.png
+    resonances_y_PC_SIZE_20260511_XXXXXX.png
+
+Pareil pour le belt test.
