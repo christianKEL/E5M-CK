@@ -98,6 +98,6 @@ echo "  E5M DOC CK — Christian KELHETTER"
 echo "============================================================"
 echo ""
 sleep 5
-systemctl restart klipper
+/etc/init.d/S55klipper_service restart
 sleep 3
 reboot
