@@ -49,7 +49,9 @@ Done in commits `8d7a743` and `00367bc`.
 
 ---
 
-## Phase 2 — Entware + persistence  🟡
+## Phase 2 — Entware + persistence  🟡 ✅ DONE
+
+**Deployed 2026-05-19:** Entware (70 packages) + custom S58factoryreset live on the printer; verify.sh confirms no drift.
 
 **Goal:** Install the package manager and the custom factory-reset hook so subsequent installs can survive resets.
 
