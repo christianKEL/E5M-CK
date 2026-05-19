@@ -10,7 +10,8 @@ The repo is the **source of truth**. A `sync.sh` script applies it to the printe
 
 🚧 **Active development on branch `main-v2`.** The previous v1 lives on branch `main` and remains usable.
 
-See [`ROADMAP.md`](ROADMAP.md) for objectives, scope, install order, and acceptance criteria.
+- [`ROADMAP.md`](ROADMAP.md) — vision, scope, install order, acceptance criteria, open questions
+- [`PLAN.md`](PLAN.md) — phased execution plan with prereqs / steps / rollback per phase
 
 ## Quick links
 
