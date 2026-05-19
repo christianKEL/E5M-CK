@@ -1,0 +1,100 @@
+#!/bin/sh
+#
+# /etc/init.d/S58factoryreset — E5M-CK replacement for the stock Creality
+# factory-reset hook. Based on the Guilouz Helper-Script version, simplified
+# and re-commented in English.
+#
+# Two entry points:
+#
+#   start  - called automatically at boot by /etc/init.d/.
+#            Looks for an empty file named `factory_reset` on a USB stick
+#            mounted at /tmp/udisk/sdaX/. If found, runs the reset.
+#
+#   reset  - called manually over SSH or by scripts/factory-reset.sh.
+#            Skips the USB check and resets immediately.
+#
+# What gets WIPED:
+#   * /overlay/upper/    (everything that has been overlaid on the squashfs
+#                         root, including /opt -> Entware, our init scripts,
+#                         our edits to /etc/*)
+#   * /usr/data/*        (everything except the carve-outs below)
+#
+# What gets PRESERVED:
+#   * /overlay/upper/etc/dropbear        (SSH host keys — so SSH still works)
+#   * /overlay/upper/etc/localtime       (timezone)
+#   * /overlay/upper/etc/init.d/S58factoryreset (this script itself)
+#   * /usr/data/creality                 (Creality state - except userdata, see below)
+#   * /usr/data/wpa_supplicant.conf      (WiFi credentials - so network still works)
+#   * /usr/data/machine_production_info  (per-printer serial / MAC info)
+#   * /usr/data/creality/userdata/config/system_config.json (Creality system settings)
+#   * /usr/data/creality/userdata/user_agree_root          (license agreement state)
+#
+# After a reset, the printer reboots, comes back on WiFi, SSH still works,
+# but every E5M-CK mod is gone. To recover, run install_entware.sh + the
+# rest of the E5M-CK installers + sync.sh from the repo.
+
+factory_reset() {
+    /usr/bin/mcu_reset.sh >/dev/null 2>&1
+    ACTION=stop /usr/bin/auto_uvc.sh >/dev/null 2>&1
+    echo "Info: Factory reset was executed successfully, the printer will restart..."
+    /etc/init.d/rcK >/dev/null 2>&1
+
+    # Wipe /overlay/upper/ except dropbear keys, timezone, and this script.
+    /usr/bin/find /overlay/upper/ \
+        -path '/overlay/upper/etc/dropbear' -prune -o \
+        -path '/overlay/upper/etc/localtime' -prune -o \
+        -path '/overlay/upper/etc/init.d/S58factoryreset' -prune -o \
+        -exec rm {} \; >/dev/null 2>&1
+    /usr/bin/find /overlay/upper/ -type d \
+        -depth -print \
+        -exec rmdir {} \; >/dev/null 2>&1
+
+    # Wipe /usr/data/ except WiFi/Creality/production-info carve-outs.
+    /usr/bin/find /usr/data/ \
+        -path '/usr/data/creality' -prune -o \
+        -path '/usr/data/wpa_supplicant.conf' -prune -o \
+        -path '/usr/data/machine_production_info' -prune -o \
+        -path '/usr/data/' -o -print \
+        -exec rm -rf {} \; >/dev/null 2>&1
+
+    # Inside /usr/data/creality/userdata, also wipe everything except
+    # system_config.json and user_agree_root.
+    /usr/bin/find /usr/data/creality/userdata \
+        -path '/usr/data/creality/userdata/config/system_config.json' -prune -o \
+        -path '/usr/data/creality/userdata/user_agree_root' -prune -o \
+        -path '/usr/data/creality/userdata' -o -type d -o -print \
+        -exec rm {} \; >/dev/null 2>&1
+    /usr/bin/find /usr/data/creality/ \
+        -depth -print \
+        -exec rmdir {} \; >/dev/null 2>&1
+
+    /bin/sync >/dev/null 2>&1
+    /sbin/swapoff -a >/dev/null 2>&1
+    /sbin/reboot -f >/dev/null 2>&1
+}
+
+case "$1" in
+    start)
+        # Boot-time check for a USB key carrying the trigger file.
+        FLAG_FILE=$(ls /tmp/udisk/sda*/factory_reset 2>/dev/null)
+        if [ $? -eq 0 ] && [ "x$FLAG_FILE" != "x" ]; then
+            FLAG_FILE=$(echo "$FLAG_FILE" | awk '{print $1}')
+            echo "Info: Executing factory reset..."
+            mv "$FLAG_FILE" "${FLAG_FILE}.old" >/dev/null 2>&1
+            factory_reset
+        else
+            echo "Info: No 'factory_reset' file found on the USB drive!"
+            exit 1
+        fi
+        ;;
+    reset)
+        echo "Info: Executing factory reset..."
+        factory_reset
+        ;;
+    *)
+        echo "Usage: $0 {start|reset}"
+        exit 1
+        ;;
+esac
+
+exit 0
