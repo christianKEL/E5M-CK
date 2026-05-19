@@ -16,11 +16,11 @@
       "fans": [
         {
           "display_name": "Part Fan Front",
-          "id": "fan_generic fan0"
+          "id": "output_pin fan0"
         },
         {
           "display_name": "Part Fan Back",
-          "id": "fan_generic fan1"
+          "id": "output_pin fan1"
         }
       ],
       "leds": [
