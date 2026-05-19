@@ -46,9 +46,13 @@ set -eu
 # -- Configuration --------------------------------------------------------
 CREALITY_PROCS="master-server app-server web-server display-server Monitor audio-server upgrade-server log_main cx_ai_middleware webrtc"
 
-S99_TARGET="/etc/init.d/S99start_app"
 BACKUP_DIR="/usr/data/backup/creality-init"
-S99_BACKUP="$BACKUP_DIR/S99start_app.disabled"
+# Init scripts that autostart Creality services. S99start_app is the
+# master script that spawns 8 of the 10 services; cx_ai_middleware and
+# webrtc have their own init scripts (discovered post-reboot during
+# the May 2026 creality_kill rollout). Disabling all three covers the
+# full Creality user-space stack.
+INITD_SCRIPTS="S99start_app S70cx_ai_middleware S97webrtc"
 
 # -- Logging --------------------------------------------------------------
 ts()   { date +'%H:%M:%S'; }
@@ -89,13 +93,17 @@ list_state() {
         fi
     done
     echo
-    if [ -f "$S99_TARGET" ]; then
-        echo "S99start_app autostart: ENABLED ($S99_TARGET present)"
-    elif [ -f "$S99_BACKUP" ]; then
-        echo "S99start_app autostart: DISABLED (moved to $S99_BACKUP)"
-    else
-        echo "S99start_app autostart: ??? (neither $S99_TARGET nor $S99_BACKUP found)"
-    fi
+    for s in $INITD_SCRIPTS; do
+        target="/etc/init.d/$s"
+        backup="$BACKUP_DIR/$s.disabled"
+        if [ -f "$target" ]; then
+            echo "  autostart: ENABLED   $s  ($target)"
+        elif [ -f "$backup" ]; then
+            echo "  autostart: DISABLED  $s  (moved to $backup)"
+        else
+            echo "  autostart: ???       $s  (neither $target nor $backup found)"
+        fi
+    done
 }
 
 # Kill all Creality processes in $CREALITY_PROCS. Idempotent.
@@ -124,30 +132,39 @@ kill_procs() {
     info "Done ($killed processes received TERM)."
 }
 
-# Disable S99start_app at boot by moving it out of /etc/init.d/.
+# Disable all Creality init scripts by moving them out of /etc/init.d/.
 disable_autostart() {
     mkdir -p "$BACKUP_DIR"
-    if [ -f "$S99_TARGET" ]; then
-        mv "$S99_TARGET" "$S99_BACKUP"
-        info "Moved $S99_TARGET -> $S99_BACKUP (no autostart at next boot)."
-    elif [ -f "$S99_BACKUP" ]; then
-        info "Already disabled: $S99_BACKUP exists, $S99_TARGET absent."
-    else
-        warn "Neither $S99_TARGET nor $S99_BACKUP found — nothing to disable."
-    fi
+    for s in $INITD_SCRIPTS; do
+        target="/etc/init.d/$s"
+        backup="$BACKUP_DIR/$s.disabled"
+        if [ -f "$target" ]; then
+            mv "$target" "$backup"
+            info "  Disabled $target (-> $backup)"
+        elif [ -f "$backup" ]; then
+            info "  Already disabled: $s"
+        else
+            warn "  Neither $target nor $backup found — nothing to disable for $s."
+        fi
+    done
 }
 
-# Re-enable S99start_app at boot.
+# Re-enable all Creality init scripts.
 enable_autostart() {
-    if [ -f "$S99_BACKUP" ]; then
-        mv "$S99_BACKUP" "$S99_TARGET"
-        chmod +x "$S99_TARGET"
-        info "Restored $S99_TARGET. Creality services will autostart at next boot."
-    elif [ -f "$S99_TARGET" ]; then
-        info "Already enabled: $S99_TARGET is in place."
-    else
-        die "Cannot restore — neither $S99_TARGET nor $S99_BACKUP found."
-    fi
+    for s in $INITD_SCRIPTS; do
+        target="/etc/init.d/$s"
+        backup="$BACKUP_DIR/$s.disabled"
+        if [ -f "$backup" ]; then
+            mv "$backup" "$target"
+            chmod +x "$target"
+            info "  Restored $target"
+        elif [ -f "$target" ]; then
+            info "  Already enabled: $s"
+        else
+            warn "  Cannot restore $s — neither $target nor $backup found."
+        fi
+    done
+    info "Creality services will autostart at next boot."
 }
 
 # -- Dispatch -------------------------------------------------------------
