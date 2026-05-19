@@ -7,6 +7,8 @@ Thumbs.db
 # Local secrets and machine-specific overrides
 .env
 *.local
+*.local.json
+.claude/settings.local.json
 secrets/
 config.sh
 
