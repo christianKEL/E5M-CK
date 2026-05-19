@@ -18,7 +18,7 @@ The Creality touchscreen stack consists of three init scripts that all need to s
 |-----------------------|-----------------------------------------------|------------------------------------------|
 | `S12boot_display`     | Splash screen at boot                         | **Moved out** of `/etc/init.d/` (filesystem rename to `/usr/data/backup/guppyscreen-stock/`) |
 | `S50dropbear`         | Starts SSH server                             | **Replaced** with GuppyScreen's variant — starts SSH *before* the display layer so you can recover if Guppy hangs |
-| `S99start_app`        | Master script spawning 9 Creality services    | **Left in place**, but `install_guppyscreen.sh` kills the obsolete processes after boot: `master-server`, `app-server`, `display-server`, `Monitor`, `audio-server`, `upgrade-server`, `log_main`, `cx_ai_middleware`, `webrtc` |
+| `S99start_app`        | Master script spawning 9 Creality services    | **Disabled** by `installs/creality_kill.sh --permanent` (moved to `/usr/data/backup/creality-init/S99start_app.disabled`). Reversible via `--restore`. |
 | `S99guppyscreen`      | (new)                                         | **Installed** from the GuppyScreen tarball's `k1_mods/` directory |
 
 The "kept alive" Creality services (intentionally not killed):
@@ -32,7 +32,13 @@ The "kept alive" Creality services (intentionally not killed):
 # (1) Local: fresh backup
 bash scripts/backup.sh
 
-# (2) Push the install script + run it
+# (2) PREREQ — disable Creality's display-server (and the 9 other
+#     obsolete services). If skipped, install_guppyscreen.sh fails fast
+#     because display-server still owns /dev/fb0.
+cat installs/creality_kill.sh | ssh root@192.168.1.94 'sh -s -- --list'
+cat installs/creality_kill.sh | ssh root@192.168.1.94 'sh -s -- --permanent'
+
+# (3) Push the install script + run it
 cat installs/install_guppyscreen.sh | ssh root@192.168.1.94 'sh -s'
 # This:
 #   - downloads guppyscreen-smallscreen.tar.gz from GitHub releases
@@ -40,19 +46,19 @@ cat installs/install_guppyscreen.sh | ssh root@192.168.1.94 'sh -s'
 #   - moves /etc/init.d/S12boot_display out (kills the boot splash)
 #   - replaces /etc/init.d/S50dropbear with Guppy's variant (SSH early)
 #   - installs /etc/init.d/S99guppyscreen from k1_mods/
-#   - kills the 9 obsolete Creality processes RIGHT NOW
+#   - creates the librc.so.1 / libeinfo.so.1 symlinks supervise-daemon needs
+#   - aborts cleanly if display-server is somehow still up
 
-# (3) Push our guppyconfig.json (pin layout matches Phase 3 printer.cfg)
+# (4) Push our guppyconfig.json (pin layout matches Phase 3 printer.cfg)
 bash scripts/sync.sh --apply
 
-# (4) Start GuppyScreen
+# (5) Start GuppyScreen
 ssh root@192.168.1.94 '/etc/init.d/S99guppyscreen start'
 
-# (5) Look at the printer screen
-# You should see the GuppyScreen dashboard (dark theme by default).
-# Tap around: temperatures, manual control, console, etc.
+# (6) Look at the printer screen
+# You should see the GuppyScreen dashboard. Tap around.
 
-# (6) Verify
+# (7) Verify
 bash scripts/verify.sh
 # In section "3. Services":
 #   ✓ GuppyScreen running (pids: ...)

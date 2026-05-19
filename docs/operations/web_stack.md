@@ -20,12 +20,18 @@ Browser  ── HTTP ─→  nginx (port 80, /opt/sbin/nginx)
 | Moonraker  | `v0.10.0`    | source + lean venv from `moonraker/binaries/mipsel-3.4/`    |
 | Fluidd     | `v1.37.0`    | release zip from GitHub                                     |
 
-## Why nginx is on port 80 (and what we kill to get there)
+## Why nginx is on port 80 (and what owns port 80 instead of nginx by default)
 
 The Creality `web-server` binary holds port 80 by default. We need that port for nginx. Approach:
 
-- Our init script `/etc/init.d/S99znginx` runs **after** `S99start_app` (lexicographic order) and unconditionally kills any `/usr/bin/web-server` process before binding port 80 itself.
-- The Creality `app-server` on port 9999 keeps running. Their touch screen UI still talks to it. So GuppyScreen (Phase 5) and Fluidd both work — the touch screen ignores port 80.
+- The May 2026 refactor moved Creality-shutdown logic into a dedicated
+  `installs/creality_kill.sh` (Phase 4.5 in `PLAN.md`). Running it with
+  `--permanent` disables `/etc/init.d/S99start_app`, so the Creality
+  stack (incl. `web-server`) no longer starts at boot.
+- `/etc/init.d/S99znginx` runs late (lexicographically after `S99start_app`,
+  so the order is robust even on a half-disabled install). It checks port 80
+  is free and refuses to start with a clear error if `web-server` is alive
+  — that's a signal `creality_kill.sh --permanent` hasn't been run yet.
 
 ## Capabilities the lean Moonraker venv misses
 
@@ -53,18 +59,27 @@ scp -O moonraker/binaries/mipsel-3.4/moonraker-env.tar.gz \
 cat installs/install_moonraker.sh | ssh root@192.168.1.94 'sh -s'
 cat installs/install_fluidd.sh    | ssh root@192.168.1.94 'sh -s'
 
-# (4) Push configs + init scripts via sync.sh
+# (4) PREREQ for S99znginx: free port 80 by disabling Creality's web-server
+#     (and the other 9 obsolete Creality services). One-time operation,
+#     reversible via --restore. See docs/operations/creality_services.md.
+cat installs/creality_kill.sh | ssh root@192.168.1.94 'sh -s -- --list'
+cat installs/creality_kill.sh | ssh root@192.168.1.94 'sh -s -- --permanent'
+
+# (5) Push configs + init scripts via sync.sh
 bash scripts/sync.sh --apply
 
-# (5) Start the new services
+# (6) Start the new services
 ssh root@192.168.1.94 '/etc/init.d/S56moonraker_service start'
 ssh root@192.168.1.94 '/etc/init.d/S99znginx start'
 
-# (6) Verify
+# (7) Verify
 bash scripts/verify.sh
 curl -s http://192.168.1.94/server/info | jq .
 # Expected: klippy_state: ready, software_version starting with v0.13
 ```
+
+S99znginx will refuse to start (with a clear error) if step (4) was skipped
+and `/usr/bin/web-server` is still holding port 80.
 
 ## Verify checklist
 

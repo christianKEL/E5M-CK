@@ -21,15 +21,15 @@
 #   - S12boot_display    — Creality boot splash (prevents flicker)
 #
 # What it does NOT touch:
-#   - S99start_app — left in place. Creality services still spawn at
-#                    boot; we kill the 9 obsolete ones (display-server,
-#                    web-server already gone via Phase 4, app-server,
-#                    master-server, Monitor, audio-server, upgrade-server,
-#                    log_main, cx_ai_middleware, webrtc) after boot.
+#   - Creality services and S99start_app — handled by installs/creality_kill.sh.
+#     Run that BEFORE this installer (or any time after deploying mainline
+#     Klipper/Moonraker/Fluidd) so the display-server and friends are gone
+#     and the framebuffer is free for GuppyScreen.
 #   - Network daemons (wpa_supplicant, ifplugd, dropbear, mdns) — kept.
 #
 # Inherited approach from v1's installs/install_guppyscreen.sh (proven
-# on the Ingenic X2000 / Nebula Pad).
+# on the Ingenic X2000 / Nebula Pad), refactored: Creality shutdown
+# extracted to creality_kill.sh in May 2026.
 #
 # Usage (after `scp -O` of guppyconfig.json if you have a customized one):
 #   cat installs/install_guppyscreen.sh | ssh root@printer 'sh -s'
@@ -187,27 +187,19 @@ for lib in librc.so.1 libeinfo.so.1; do
     fi
 done
 
-# -- 5. Stop Creality display + spawn services ---------------------------
+# -- 5. Check that Creality display is gone ------------------------------
+# Killing display-server, master-server, etc. is now centralized in
+# installs/creality_kill.sh. Refuse to proceed if the framebuffer is
+# still owned by display-server — GuppyScreen would either fail to
+# initialize the framebuffer or flicker against the Creality splash.
 info ""
-info "=== Stop Creality display + obsolete services ==="
-# These 9 are spawned by S99start_app and become irrelevant once
-# Klipper + Moonraker + GuppyScreen take over. Network daemons
-# (wpa_supplicant, ifplugd, dropbear, mdns) are explicitly NOT killed.
-CREALITY_PROCS="master-server app-server display-server Monitor audio-server upgrade-server log_main cx_ai_middleware webrtc"
-
-for proc in $CREALITY_PROCS; do
-    PIDS=$(pidof "$proc" 2>/dev/null || true)
-    if [ -n "$PIDS" ]; then
-        kill -9 $PIDS 2>/dev/null
-        info "  Killed $proc (PIDs: $PIDS)"
-    fi
-done
-# Give the kernel a moment to release the framebuffer.
-sleep 2
-
-# Also stop any leftover cmd_jpeg_display (the splash painter).
-PIDS=$(pidof cmd_jpeg_display 2>/dev/null || true)
-[ -n "$PIDS" ] && kill -9 $PIDS 2>/dev/null && info "  Killed cmd_jpeg_display"
+info "=== Check Creality display is stopped ==="
+if pidof display-server >/dev/null 2>&1; then
+    err "/usr/bin/display-server is still running (PIDs: $(pidof display-server))."
+    err "Run installs/creality_kill.sh --permanent first, then re-run this installer."
+    exit 1
+fi
+info "OK — display-server is not running."
 
 # -- 6. Verify (don't start Guppy yet — config not pushed by sync.sh) ----
 info ""
@@ -220,5 +212,9 @@ info ""
 info "GuppyScreen $GUPPY_TAG ready at $GUPPY_DIR."
 info ""
 info "Next steps (from local host):"
-info "  bash scripts/sync.sh --apply       # deploys guppyconfig.json"
+info "  # 1. Confirm Creality services are dead (and won't respawn at boot):"
+info "  cat installs/creality_kill.sh | ssh root@printer 'sh -s -- --list'"
+info "  # 2. Push the GuppyScreen config:"
+info "  bash scripts/sync.sh --apply"
+info "  # 3. Start GuppyScreen:"
 info "  ssh root@printer '/etc/init.d/S99guppyscreen start'"

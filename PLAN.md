@@ -138,6 +138,37 @@ Done in commits `8d7a743` and `00367bc`.
 
 ---
 
+## Phase 4.5 — Creality service shutdown  🟢 ✅ DONE
+
+**Deployed 2026-05-19:** Refactor introduced `installs/creality_kill.sh` as the single owner of the policy that disables Creality's stock services. Before this, kill logic was scattered across `install_guppyscreen.sh` and `S99znginx`.
+
+**Goal:** Centralize the "disable the Creality stack" policy so it can be applied once (`--permanent`), reviewed (`--list`), or reverted (`--restore`) without each downstream installer reaching in to kill its own subset.
+
+**Prereqs:** Phase 4 (Moonraker + nginx + Fluidd are ready to take over the API and port 80).
+
+**Steps:**
+
+1. `installs/creality_kill.sh` — one script, four modes:
+   - `--list`: read-only status of the 10 tracked Creality services and of `/etc/init.d/S99start_app`.
+   - `--kill-now`: TERM/KILL the running services this session only (will respawn on reboot).
+   - `--permanent`: `--kill-now` PLUS move `/etc/init.d/S99start_app` to `/usr/data/backup/creality-init/S99start_app.disabled` so the stack does not autostart at next boot.
+   - `--restore`: undo `--permanent`.
+2. Update `installs/install_guppyscreen.sh`: remove the inline kill loop; instead, refuse to proceed if `display-server` is still running and point the operator at `creality_kill.sh`.
+3. Update `system/etc/init.d/S99znginx`: remove the `WS_PIDS` kill block; instead, refuse to start if `web-server` still holds port 80 and point the operator at `creality_kill.sh`.
+4. Update `docs/operations/web_stack.md` and `docs/operations/guppyscreen.md` to list `creality_kill.sh --permanent` as a prerequisite step.
+
+**Services covered:** `master-server`, `app-server`, `web-server`, `display-server`, `Monitor`, `audio-server`, `upgrade-server`, `log_main`, `cx_ai_middleware`, `webrtc` (+ `cmd_jpeg_display` as cleanup). Network daemons explicitly NOT touched (`wpa_supplicant`, `ifplugd`, `dropbear`, `mdns`, `wifi-server`).
+
+**Acceptance criteria:**
+
+- `creality_kill.sh --list` prints a clear table of running vs stopped services.
+- After `creality_kill.sh --permanent` and a reboot, `pidof master-server` etc. are all empty.
+- `creality_kill.sh --restore` followed by a reboot brings back the Creality stack.
+
+**Rollback:** `creality_kill.sh --restore`. Or via factory-reset.sh (which restores `S99start_app` from `/usr/data/backup/creality-init/`).
+
+---
+
 ## Phase 5 — GuppyScreen  🔴 ✅ DONE
 
 **Deployed 2026-05-19:** GuppyScreen v0.0.26-beta running on the touchscreen, connected to Moonraker via WebSocket. Creality display-server + 8 other obsolete services killed. Network daemons preserved.

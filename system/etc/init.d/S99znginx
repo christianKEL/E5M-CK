@@ -2,15 +2,13 @@
 #
 # /etc/init.d/S99znginx — Entware nginx serving Fluidd + Moonraker reverse proxy.
 #
-# Named S99z so it runs AFTER S99start_app (the Creality master script that
-# spawns web-server, app-server, display-server, etc.). We need that order
-# because Creality's web-server binds port 80; we kill it then take the port.
-#
-# Why kill instead of disable? Disabling web-server would require editing
-# /usr/bin/start-app (squashfs/overlay churn) or rewriting S99start_app.
-# Killing post-spawn is the lightest touch — the only Creality functionality
-# we lose is their stock web UI on port 80, which is exactly what Fluidd
-# replaces.
+# Named S99z so it runs AFTER S99start_app, in case that script is still
+# present and respawns web-server. As of the May 2026 refactor, the
+# expected steady state is that creality_kill.sh --permanent has already
+# moved S99start_app out and the Creality stock services don't start
+# anymore. We still defensively check port 80 here so a partial install
+# (Phase 4 deployed, creality_kill not yet run) fails loud rather than
+# silently breaking the web UI.
 
 NGINX=/opt/sbin/nginx
 NGINX_CONF=/opt/etc/nginx/nginx.conf
@@ -26,17 +24,15 @@ start() {
         exit 1
     fi
 
-    # Free port 80 — kill Creality's stock web-server if running.
-    # busybox doesn't ship pkill/pgrep, so we use pidof which IS in busybox.
-    WS_PIDS=$(pidof web-server 2>/dev/null || true)
-    if [ -n "$WS_PIDS" ]; then
-        echo "Stopping Creality web-server (PIDs: $WS_PIDS) to free port 80..."
-        kill -TERM $WS_PIDS 2>/dev/null
-        sleep 1
-        # Re-check; force-kill anything still alive.
-        WS_PIDS=$(pidof web-server 2>/dev/null || true)
-        [ -n "$WS_PIDS" ] && kill -KILL $WS_PIDS 2>/dev/null
-        sleep 1
+    # Verify port 80 is free. If Creality's web-server is still up, the
+    # operator forgot to run creality_kill.sh --permanent. Refuse rather
+    # than reach in and kill — that ownership lives in creality_kill.sh now.
+    if pidof web-server >/dev/null 2>&1; then
+        echo "ERROR: /usr/bin/web-server is still running on port 80." >&2
+        echo "Run from your local machine:" >&2
+        echo "  cat installs/creality_kill.sh | ssh root@printer 'sh -s -- --permanent'" >&2
+        echo "Then retry: /etc/init.d/S99znginx start" >&2
+        exit 1
     fi
 
     echo "Starting nginx with $NGINX_CONF ..."
