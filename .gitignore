@@ -1,0 +1,31 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Local secrets and machine-specific overrides
+.env
+*.local
+secrets/
+
+# Build artifacts
+build/
+dist/
+*.o
+*.elf
+*.hex
+out/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Backups & runtime state (shouldn't be committed)
+*.bak
+*.old
+*.log
+backups-local/
