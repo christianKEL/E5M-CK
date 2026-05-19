@@ -38,7 +38,7 @@
 set -eu
 
 GUPPY_REPO="ballaswag/guppyscreen"
-GUPPY_TAG="v0.0.26-beta"
+GUPPY_TAG="0.0.26-beta"
 GUPPY_ASSET="guppyscreen-smallscreen.tar.gz"
 
 GUPPY_DIR="/usr/data/guppyscreen"
@@ -104,24 +104,38 @@ if [ ! -f "$VERSION_STAMP" ]; then
     [ "$SIZE" -gt 200000 ] || die "Download too small ($SIZE bytes). Wrong URL?"
 
     info "=== Extract ==="
-    mkdir -p "$GUPPY_DIR"
-    cd "$GUPPY_DIR"
+    rm -rf "$GUPPY_DIR"
+    # Extract to a staging dir first so we control the final layout
+    # regardless of whether the tarball nests under guppyscreen/ or not.
+    STAGE_DIR="/tmp/guppyscreen-stage.$$"
+    rm -rf "$STAGE_DIR"
+    mkdir -p "$STAGE_DIR"
+    cd "$STAGE_DIR"
     tar xzf "$TMP_TARBALL"
     rm -f "$TMP_TARBALL"
 
-    # The tarball extracts a top-level guppyscreen/ dir; the binary may
-    # land inside that, or directly here. Handle both layouts.
-    if [ -d "$GUPPY_DIR/guppyscreen" ] && [ -x "$GUPPY_DIR/guppyscreen/guppyscreen" ]; then
-        # Flatten one level so the binary is at $GUPPY_DIR/guppyscreen.
-        info "Flattening nested guppyscreen/ directory..."
-        mv "$GUPPY_DIR/guppyscreen"/* "$GUPPY_DIR"/
-        rmdir "$GUPPY_DIR/guppyscreen" 2>/dev/null || true
+    # The k1_mods/S99guppyscreen init script (shipped IN the tarball)
+    # expects FLAT layout:
+    #     $GUPPY_DIR/guppyscreen           -> binary
+    #     $GUPPY_DIR/k1_mods/
+    #     $GUPPY_DIR/themes/
+    # The 0.0.26-beta smallscreen tarball extracts NESTED:
+    #     guppyscreen/guppyscreen          -> binary
+    #     guppyscreen/k1_mods/
+    # Flatten by promoting the inner guppyscreen/ dir to $GUPPY_DIR.
+    if [ -d "$STAGE_DIR/guppyscreen" ] && [ -x "$STAGE_DIR/guppyscreen/guppyscreen" ]; then
+        info "Tarball is nested — flattening to expected flat layout."
+        mv "$STAGE_DIR/guppyscreen" "$GUPPY_DIR"
+    else
+        info "Tarball is already flat."
+        mv "$STAGE_DIR" "$GUPPY_DIR"
     fi
+    rm -rf "$STAGE_DIR"
 
-    [ -x "$GUPPY_DIR/guppyscreen" ] || die "guppyscreen binary missing at $GUPPY_DIR/guppyscreen"
+    [ -x "$GUPPY_DIR/guppyscreen" ] || die "guppyscreen binary missing at $GUPPY_DIR/guppyscreen (layout error)."
     [ -d "$GUPPY_DIR/k1_mods" ]      || die "k1_mods/ directory missing — tarball layout changed?"
     echo "$GUPPY_TAG" > "$VERSION_STAMP"
-    info "Extracted at $GUPPY_DIR ($(du -sh "$GUPPY_DIR" | awk '{print $1}'))"
+    info "Installed at $GUPPY_DIR ($(du -sh "$GUPPY_DIR" | awk '{print $1}'))"
 fi
 
 # -- 2. Backup stock display init scripts (once) -------------------------
@@ -159,6 +173,19 @@ info "Installed S50dropbear (Guppy variant — SSH starts early)"
 cp "$GUPPY_DIR/k1_mods/S99guppyscreen" /etc/init.d/S99guppyscreen
 chmod +x /etc/init.d/S99guppyscreen
 info "Installed S99guppyscreen"
+
+# The shipped S99guppyscreen has a bug in its `[ ! -f $LIBEINFO ]` check:
+# it tests the SOURCE file rather than the symlink target, so the
+# /lib/lib{einfo,rc}.so.1 symlinks supervise-daemon needs are never
+# created. Create them ourselves (idempotent).
+for lib in librc.so.1 libeinfo.so.1; do
+    src="$GUPPY_DIR/k1_mods/respawn/$lib"
+    dst="/lib/$lib"
+    if [ -f "$src" ] && [ ! -e "$dst" ]; then
+        ln -sf "$src" "$dst"
+        info "Linked $dst → $src"
+    fi
+done
 
 # -- 5. Stop Creality display + spawn services ---------------------------
 info ""
