@@ -1,0 +1,57 @@
+#!/bin/sh
+#
+# /etc/init.d/S56moonraker_service — Moonraker host process for Klipper.
+#
+# Sits between Klipper's UDS socket (/tmp/klippy_uds) and our web stack
+# (nginx + Fluidd). Listens on TCP 7125 for HTTP/WebSocket clients.
+#
+
+PROG=/usr/data/venvs/moonraker/bin/python3
+PY_SCRIPT=/usr/data/e5m-ck/moonraker/moonraker/server.py
+CONFIG=/usr/data/printer_data/config/moonraker.conf
+LOG_FILE=/usr/data/printer_data/logs/moonraker.log
+PID_FILE=/var/run/moonraker.pid
+
+start() {
+    if [ ! -x "$PROG" ]; then
+        echo "ERROR: $PROG missing. Run install_moonraker.sh first." >&2
+        exit 1
+    fi
+    if [ ! -f "$PY_SCRIPT" ]; then
+        echo "ERROR: $PY_SCRIPT missing. Moonraker source not installed." >&2
+        exit 1
+    fi
+    if [ ! -f "$CONFIG" ]; then
+        echo "ERROR: $CONFIG missing. Run scripts/sync.sh --apply first." >&2
+        exit 1
+    fi
+
+    mkdir -p "$(dirname "$LOG_FILE")"
+
+    # Moonraker needs the source dir on PYTHONPATH so `import moonraker.server`
+    # works without an editable install.
+    HOME=/root PYTHONPATH=/usr/data/e5m-ck/moonraker \
+        start-stop-daemon -S -q -b -m -p "$PID_FILE" \
+        --exec "$PROG" -- "$PY_SCRIPT" \
+        -c "$CONFIG" \
+        -l "$LOG_FILE"
+}
+
+stop() {
+    start-stop-daemon -K -q -p "$PID_FILE"
+}
+
+restart() {
+    stop
+    sleep 1
+    start
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart|reload) restart ;;
+    *) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac
+
+exit $?

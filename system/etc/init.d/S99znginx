@@ -1,0 +1,66 @@
+#!/bin/sh
+#
+# /etc/init.d/S99znginx — Entware nginx serving Fluidd + Moonraker reverse proxy.
+#
+# Named S99z so it runs AFTER S99start_app (the Creality master script that
+# spawns web-server, app-server, display-server, etc.). We need that order
+# because Creality's web-server binds port 80; we kill it then take the port.
+#
+# Why kill instead of disable? Disabling web-server would require editing
+# /usr/bin/start-app (squashfs/overlay churn) or rewriting S99start_app.
+# Killing post-spawn is the lightest touch — the only Creality functionality
+# we lose is their stock web UI on port 80, which is exactly what Fluidd
+# replaces.
+
+NGINX=/opt/sbin/nginx
+NGINX_CONF=/opt/etc/nginx/nginx.conf
+PID_FILE=/var/run/nginx-e5m.pid
+
+start() {
+    if [ ! -x "$NGINX" ]; then
+        echo "ERROR: $NGINX missing. opkg install nginx-ssl ?" >&2
+        exit 1
+    fi
+    if [ ! -f "$NGINX_CONF" ]; then
+        echo "ERROR: $NGINX_CONF missing. Run scripts/sync.sh --apply first." >&2
+        exit 1
+    fi
+
+    # Free port 80 — kill Creality's stock web-server if running.
+    if pgrep -f '/usr/bin/web-server' >/dev/null 2>&1; then
+        echo "Stopping Creality web-server to free port 80..."
+        pkill -TERM -f '/usr/bin/web-server' 2>/dev/null
+        sleep 1
+        pkill -KILL -f '/usr/bin/web-server' 2>/dev/null
+    fi
+
+    echo "Starting nginx with $NGINX_CONF ..."
+    "$NGINX" -c "$NGINX_CONF" -t 2>&1 || {
+        echo "ERROR: nginx config test failed." >&2
+        exit 1
+    }
+    "$NGINX" -c "$NGINX_CONF"
+    # nginx daemonizes itself; PID goes to $PID_FILE per our config.
+}
+
+stop() {
+    if [ -f "$PID_FILE" ]; then
+        kill -TERM "$(cat $PID_FILE)" 2>/dev/null
+        rm -f "$PID_FILE"
+    fi
+}
+
+restart() {
+    stop
+    sleep 1
+    start
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart|reload) restart ;;
+    *) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac
+
+exit $?
