@@ -71,9 +71,27 @@ If Klipper errors with `Unable to open serial port /dev/serial/by-id/...`, the p
 
 Source: <https://www.klipper3d.org/Eddy_Probe.html>. Steps MUST run in this order.
 
-With the BTT Eddy mount offsets (x=22, y=0), the **probe** sits over the bed
-center (200, 200) when the **nozzle** is at (X=178, Y=200). All commands
-below assume that placement.
+With BTT Eddy mount offsets `x_offset=22, y_offset=0`, the **probe is 22 mm
+to the +X of the nozzle**. So:
+- Nozzle at X=200, Y=200 → probe at X=222, Y=200
+- Nozzle at X=178, Y=200 → probe at X=200, Y=200 (= bed center)
+
+**Which one to use depends on the operation:**
+
+| Operation                          | What needs to be at center | XY command         |
+|------------------------------------|----------------------------|--------------------|
+| `LDC_CALIBRATE_DRIVE_CURRENT`      | The probe (sensor cal)     | `G0 X178 Y200`     |
+| `PROBE_EDDY_CURRENT_CALIBRATE`     | The nozzle (paper test)    | `G0 X200 Y200` ⭐  |
+| `PROBE_EDDY_CURRENT_TAP_CALIBRATE` | The nozzle (it taps)       | `G0 X200 Y200`     |
+| `TEMPERATURE_PROBE_CALIBRATE`      | The nozzle (paper test)    | `G0 X200 Y200`     |
+| `PROBE_ACCURACY METHOD=scan`       | The probe (measure probe)  | `G0 X178 Y200`     |
+| `PROBE_ACCURACY METHOD=tap`        | The nozzle (it taps)       | `G0 X200 Y200`     |
+
+⭐ **Important for cal**: after the paper-test ACCEPT, Klipper
+**automatically shifts the toolhead by (-x_offset, -y_offset)** to put the
+probe over the paper-test XY. So you do NOT pre-shift to put the probe at
+the center — Klipper does it for you after ACCEPT. The doc rule is "put
+what's being measured at the center, Klipper handles the rest".
 
 ### Step 1 — Drive current (LDC sensor sensitivity)
 
@@ -82,7 +100,7 @@ below assume that placement.
 
 ```
 G28
-G0 X178 Y200 F6000          ; probe over bed center
+G0 X178 Y200 F6000          ; probe over bed center (sensor cal needs probe-at-center)
 G0 Z20 F600                 ; 20 mm above bed (per doc)
 LDC_CALIBRATE_DRIVE_CURRENT CHIP=btt_eddy
 SAVE_CONFIG                 ; (triggers Klipper restart)
@@ -94,6 +112,8 @@ Completes in a few seconds. No heating required.
 
 > "For best results the calibration done here and the subsequent probing
 > that utilizes that calibration should be done at the same temperature."
+> "Home the printer and navigate the toolhead so that the nozzle is near
+> the center of the bed." — Klipper docs
 
 The bed plate's thermal expansion (~0.3 mm across a 300 mm Z-axis swing on
 a 6mm aluminium plate at 60 °C) shifts the LDC frequency. Calibrate at the
@@ -107,13 +127,16 @@ M104 S150                   ; nozzle → 150 °C (no-ooze)
 M190 S60                    ; wait bed
 M109 S150                   ; wait nozzle
 G28
-G0 X178 Y200 F6000
+G0 X200 Y200 F6000          ; NOZZLE at bed center (Klipper shifts probe after ACCEPT)
 PROBE_EDDY_CURRENT_CALIBRATE CHIP=btt_eddy
 ```
 
-Klipper drops the toolhead and prompts via Fluidd's `manual_probe` dialog.
-Follow the paper test — `TESTZ Z=-0.1` / `TESTZ Z=+0.02` until paper drags,
-then `ACCEPT`. Klipper sweeps probe heights, builds the F→H table.
+Klipper opens the `manual_probe` paper test (the bed rises toward the
+toolhead until the nozzle is close to the bed). Adjust with `TESTZ Z=-0.1`
+(bed up, smaller gap) / `TESTZ Z=+0.02` (bed down, bigger gap) until paper
+drags, then `ACCEPT`. Klipper then auto-shifts the toolhead by (-22, 0)
+so the probe is over the paper-test XY, and sweeps probe heights to build
+the F→H table.
 
 ```
 SAVE_CONFIG                 ; persists z_offset + frequency map
@@ -147,7 +170,7 @@ Preconditions:
 
 ```
 G28
-G0 X178 Y200 F6000
+G0 X200 Y200 F6000          ; NOZZLE at bed center (it does the physical tap)
 G0 Z5 F600                  ; doc: "between 3 - 10 mm from the bed"
 PROBE_EDDY_CURRENT_TAP_CALIBRATE TAP=guess        ; coarse threshold from scan data
 PROBE_EDDY_CURRENT_TAP_CALIBRATE TAP=refine       ; improve threshold from a real tap
@@ -180,7 +203,7 @@ Preconditions:
 ```
 M104 S160 ; M109 S160         ; nozzle hot before starting
 G28
-G0 X178 Y200 F6000
+G0 X200 Y200 F6000            ; NOZZLE at bed center (paper test is interactive)
 G0 Z30 F600                   ; ≥ 30 mm above bed (doc requirement)
 TEMPERATURE_PROBE_CALIBRATE PROBE=btt_eddy TARGET=70
 ```
