@@ -74,34 +74,37 @@ Done in commits `8d7a743` and `00367bc`.
 
 ---
 
-## Phase 3 — Klipper mainline rebuild  🔴
+## Phase 3 — Klipper mainline (host-only)  🟡
 
-**Goal:** Replace stock Creality Klipper with upstream Klipper, applying *at most one* minimal patch for the Creality ADXL345.
+**Goal:** Install upstream Klipper Python (klippy) at a pinned tag, pointing at the **existing Creality-fork MCU firmwares already on the 3 GD32 chips**. No cross-compile, no firmware flashing, no MCU-level patches in this phase.
+
+**Out of scope (deferred to later "stable installation" phase):**
+- MCU firmware compilation or flashing — we keep `CR4NS200323C10`, `CR-NOZZLE_V21`, `CR-K1-MAX-LEVELING-V1.0.0` as-is.
+- ADXL345 Creality patch — mainline klippy will run without it; Input Shaping won't work until the patch lands later.
 
 **Prereqs:** Phase 2.
 
 **Steps:**
 
-1. `klipper/patches/adxl345_creality.patch` — minimal, well-commented patch against upstream `master`. Goal: target ≤ 100 lines.
-2. `installs/install_klipper.sh` :
-   - Clones upstream Klipper at a pinned tag (recorded in the script).
-   - Applies the patch.
-   - Builds firmware for the 3 GD32 MCUs (main `CR4NS200323C10`, nozzle `CR-NOZZLE_V21`, leveling `CR-K1-MAX-LEVELING-V1.0.0`).
-   - Installs Python venv at `/usr/data/venvs/klippy/`.
-   - Replaces `/etc/init.d/S55klipper_service` to use the new install.
-   - Stages firmwares; flashing is a separate explicit step.
-3. `installs/flash_klipper_mcus.sh` — interactive flasher, one MCU at a time, with verification after each.
-4. `klipper/config/` — modular printer.cfg split (printer, mcu, steppers, extruder, bed, sensorless, macros/*).
-5. `docs/operations/klipper_rebuild.md` — what changed, how to rollback to stock if needed.
+1. `installs/install_klipper.sh` :
+   - Clones upstream Klipper at a pinned tag (recorded in the script + commit message).
+   - Installs Python venv at `/usr/data/venvs/klippy/` using `python3 -m venv`.
+   - Installs Klipper's Python deps from `scripts/klippy-requirements.txt` of the cloned repo.
+   - Writes a new init script `system/etc/init.d/S55klipper_service` (replacing the stock one, with backup at `/usr/data/backup/S55klipper_service.orig`).
+   - Does NOT touch the MCU firmwares.
+2. `klipper/config/` — minimal modular split tailored to mainline + Creality MCUs (printer, mcu, steppers, extruder, bed, sensorless include from existing `sensorless.cfg`, basic macros). Goal: smallest viable config that boots clean.
+3. `system/etc/init.d/S55klipper_service` (committed) — runs klippy from the new venv, using `/usr/data/printer_data/config/printer.cfg`, log at `/usr/data/printer_data/logs/klippy.log`, socket `/tmp/klippy_uds`.
+4. `docs/operations/klipper_install.md` — what's installed, what's NOT (firmwares, ADXL patch), how to rollback to stock klippy via S58 reset or by restoring `/usr/data/backup/S55klipper_service.orig`.
 
 **Acceptance criteria:**
 
-- `klippy.log` shows mainline Klipper version banner.
-- All 4 MCUs come up `ready` within 30 s.
-- 30-minute idle observation: `bytes_retransmit` < 100 per MCU, no `flush_handler` warnings.
-- `STATUS` over Klipper UDS returns sane values.
+- `klippy.log` shows the **upstream** Klipper version banner (commit hash + tag).
+- All 4 MCUs (`mcu`, `nozzle_mcu`, `leveling_mcu`, `rpi`) come up `ready` within 30 s.
+- 30-minute idle observation: `bytes_retransmit` < 100 per MCU, no `flush_handler` / `timer too close` / `shutdown` warnings.
+- Basic motion test: `G28` homes successfully (uses sensorless), `M104 S50` heats extruder, jog X/Y/Z works.
+- Input Shaping (`SHAPER_CALIBRATE`) is expected to **fail** until the ADXL patch lands later — this is acceptable for Phase 3.
 
-**Rollback:** Reflash stock Klipper firmwares (kept in `/usr/data/backup/firmwares/` by `install_klipper.sh`); restore stock `S55klipper_service` from `/usr/data/backup/`.
+**Rollback:** `bash scripts/factory-reset.sh --confirm-i-mean-it` removes `/usr/data/venvs/klippy/` and restores the stock `S55klipper_service` from backup. Stock Creality klippy resumes from squashfs on next boot.
 
 ---
 
@@ -195,7 +198,7 @@ Done in commits `8d7a743` and `00367bc`.
    2. `PID_CALIBRATE HEATER=extruder TARGET=220`
    3. `BED_TILT_CALIBRATE` (if hardware supports it; otherwise document why skipped)
    4. `BED_MESH_CALIBRATE` (Eddy from Phase 6)
-   5. `SHAPER_CALIBRATE` (Input Shaping via patched ADXL345 from Phase 3)
+   5. ~~`SHAPER_CALIBRATE`~~ — **deferred to Phase 10** (needs the ADXL Creality patch)
    6. Pressure Advance — sample tower print
    7. Flow rate — sample cube print
 3. Save results to `klipper/config/printer_params.cfg` (committed) — the runtime calibration values.
@@ -260,20 +263,35 @@ Done in commits `8d7a743` and `00367bc`.
 
 ---
 
-## Phase 10 — Hardening + v2 release  🟡
+## Phase 10 — Stable installation + v2 release  🔴
 
-**Goal:** Promote `main-v2` to `main` as the new stable.
+**Goal:** Add the ADXL Creality patch (so Input Shaping works), validate end-to-end, promote `main-v2` to `main` as v2.0.0.
+
+This is the **"stable" milestone** the user references — until this phase lands, the v2 setup is functional but missing Input Shaping. After this phase, the printer matches v1 feature parity (plus the v2 GitOps benefits).
 
 **Prereqs:** Phases 1–9.
 
 **Steps:**
 
-1. Documentation pass: every script has a header block, every `docs/` page is current, every open question in ROADMAP either resolved or explicitly deferred.
-2. CI: `lint.yml` workflow (shellcheck + klipper-cfg-lint + yamllint). Requires `workflow` OAuth scope — re-auth `gh` then.
-3. End-to-end test: factory-reset the printer → run all installs in order → printer prints in < 2 h.
-4. Tag the current `main` as `v1-final`. Optionally branch `legacy/v1` from the same commit for posterity.
-5. Merge `main-v2` → `main`. Tag `v2.0.0`.
-6. Update README on `main` to reflect v2.
+1. `klipper/patches/adxl345_creality.patch` — minimal patch against the upstream Klipper tag pinned in Phase 3. Goal: ≤ 100 lines. Source: derived from v1's `files/adxl345_creality.py`.
+2. Extend `installs/install_klipper.sh` (or add `installs/install_klipper_patches.sh`) — applies the patch against the cloned upstream, rebuilds the venv if needed, restarts klippy.
+3. **Optionally** rebuild + reflash MCU firmwares if the patch needs MCU-side support. Decide based on the patch scope. If unavoidable, document under `docs/operations/mcu_firmware_rebuild.md` and provide a one-shot `installs/flash_klipper_mcus.sh` with explicit confirmation.
+4. Run the deferred `SHAPER_CALIBRATE` from Phase 7. Save shaper params to `klipper/config/printer_params.cfg`.
+5. End-to-end stability test: 1-hour print at full speed, monitored by Phase 8 observability. Must complete without retransmit spike, flush_handler warnings, or shutdowns.
+6. Documentation pass: every script has a header block, every `docs/` page current, every open question in ROADMAP resolved or explicitly deferred.
+7. CI: `.github/workflows/lint.yml` (shellcheck + klipper-cfg-lint + yamllint). Requires `workflow` OAuth scope — re-auth `gh` first.
+8. Fresh-install test: factory-reset the printer → run all installs in order → printer prints a calibration cube in < 2 h with zero manual fixes.
+9. Tag current `main` as `v1-final`. Optionally branch `legacy/v1` from the same commit.
+10. Merge `main-v2` → `main`. Tag `v2.0.0`. Update README on `main`.
+
+**Acceptance criteria:**
+
+- `SHAPER_CALIBRATE` produces sane resonance curves on both X and Y; recommended shaper applied.
+- 1-hour stress print completes with `bytes_retransmit` delta < 50 per MCU, no warnings/errors in klippy.log.
+- Fresh-install end-to-end works in < 2 h with no manual intervention.
+- `v2.0.0` tag points at `main`, README reflects v2.
+
+**Rollback:** Revert the merge commit; users can pin `v1-final` to stay on v1. The patch itself is rollback-safe (revert + restart klippy).
 
 **Acceptance criteria:**
 
@@ -288,22 +306,22 @@ Done in commits `8d7a743` and `00367bc`.
 ## Phase ordering & critical path
 
 ```
-Phase 0 (done)
+Phase 0 (done) ✅
    │
    ▼
-Phase 1 (tooling) ────────────────┐
-   │                              │
-   ▼                              │
-Phase 2 (entware + persistence)   │
-   │                              │
-   ▼                              │
-Phase 3 (klipper rebuild) ────────┤── critical path
-   │                              │
-   ├──► Phase 6 (eddy)            │
-   │       │                      │
-   │       └──┐                   │
-   │          ▼                   │
-   └──► Phase 4 (moonraker+nginx+fluidd)
+Phase 1 (tooling) ✅
+   │
+   ▼
+Phase 2 (entware + custom S58) ✅
+   │
+   ▼
+Phase 3 (mainline klippy, host-only) ───── critical path
+   │
+   ├──► Phase 6 (eddy probe + config)
+   │       │
+   │       └──┐
+   │          ▼
+   └──► Phase 4 (moonraker + nginx + fluidd)
               │       │
               │       ├──► Phase 5 (guppyscreen)
               │       │
@@ -311,13 +329,15 @@ Phase 3 (klipper rebuild) ────────┤── critical path
               │       │
               │       └──► Phase 9 (slicer)
               ▼
-           Phase 7 (calibrations) ── needs 3, 4, 6
+           Phase 7 (calibrations except SHAPER) ── needs 3, 4, 6
               │
               ▼
-           Phase 10 (release)
+           Phase 10 (ADXL patch + SHAPER + v2.0.0 release)
 ```
 
 **Critical path:** 0 → 1 → 2 → 3 → 4 → 7 → 10. Phases 5, 6, 8, 9 can run in parallel once their prereqs are met.
+
+**Scope note (2026-05-19):** MCU firmwares are kept stock (Creality fork on `CR4NS200323C10` / `CR-NOZZLE_V21` / `CR-K1-MAX-LEVELING-V1.0.0`). No cross-compile, no flashing during Phases 3–9. Input Shaping is deferred to Phase 10 because it needs the ADXL Creality patch.
 
 ---
 
