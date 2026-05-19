@@ -56,11 +56,35 @@ The installer:
 
 Override the pinned tag with `--tag=vX.Y.Z` if needed.
 
-**If the precompiled `c_helper.so` is ABI-incompatible with the chosen Klipper tag**, the verification step in (b) will fail with `CHELPER LOAD FAILED`. Fallback: install gcc + make via Entware (uses ~100 MB on `/overlay`), then re-run the installer — klippy will compile a fresh c_helper.so on first start.
+### Rebuilding `c_helper.so` for a different Klipper tag
+
+The shipped binary at `klipper/binaries/mipsel-3.4/c_helper.so` is compiled against the **pinned tag (default `v0.13.0`)**. If you bump the Klipper tag and the chelper sources changed, you need to rebuild.
+
+The Ingenic XBurst2 SoC requires very specific compiler flags (`-mnan=2008 -mfp64 -mabs=2008`) that the Creality stock gcc and most Debian cross-compilers don't get right. The reliable path is the Dafang-Hacks Ingenic toolchain on an x86_64 host. The full method is documented in [`assets/memos/MEMO_c_helper_ENG.md`](../../assets/memos/MEMO_c_helper_ENG.md) on the legacy `main` branch (the document this v2 rebuild is based on).
+
+Short version, in a GitHub Codespace:
+
+```bash
+git clone --depth 1 https://github.com/Dafang-Hacks/mips-gcc520-glibc222-64bit-r3.2.1 ~/ingenic-toolchain
+git -C /workspaces/klipper -c advice.detachedHead=false checkout vX.Y.Z   # your target tag
+cd /workspaces/klipper/klippy/chelper && rm -f c_helper.so
+~/ingenic-toolchain/bin/mips-linux-gnu-gcc -shared -fPIC -O2 -mnan=2008 -mfp64 -mabs=2008 \
+    $(ls *.c) -o c_helper.so
+~/ingenic-toolchain/bin/mips-linux-gnu-readelf -h c_helper.so | grep "Flags"
+# Expected: Flags: 0x70001407, noreorder, pic, cpic, nan2008, o32, mips32r2
+```
+
+Then `gh codespace cp -c <name> remote:.../c_helper.so klipper/binaries/mipsel-3.4/c_helper.so` and commit.
+
+### Fallback — install gcc on the printer
+
+If pre-built binaries become unmanageable, install gcc + make via Entware (~100 MB on the `/overlay` partition; check `df -h /overlay` first — leaves ~37 MB free with everything we'll install in Phases 4-9). Then klippy compiles c_helper.so on first start.
 
 ```bash
 ssh root@192.168.1.94 '/opt/bin/opkg install gcc make'
 ```
+
+**Not recommended** unless you're actively iterating on chelper — the disk-space cost is real and you risk filling the overlay.
 
 ### 2. Deploy the new config + init script
 
