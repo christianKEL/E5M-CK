@@ -118,6 +118,23 @@ MR_DESC=$(cd "$MOONRAKER_DIR" && /opt/bin/git describe --tags --always)
 MR_SHA=$(cd "$MOONRAKER_DIR" && /opt/bin/git rev-parse HEAD)
 info "Checked out: $MR_DESC ($MR_SHA)"
 
+# Convert the depth=1 detached-HEAD checkout into a proper local branch
+# tracking origin/master. Without this, Moonraker's OWN update_manager
+# reports "INVALIDE" / "no branch" in Fluidd UI because there's no
+# branch.<name>.remote config. The HEAD doesn't actually move — both
+# refs/heads/master and refs/remotes/origin/master point at the same
+# pinned-tag commit.
+info "Configuring branch tracking (master → origin/master at $MR_DESC)..."
+(
+    cd "$MOONRAKER_DIR"
+    /opt/bin/git update-ref refs/remotes/origin/master "$MR_SHA"
+    /opt/bin/git update-ref refs/heads/master "$MR_SHA"
+    /opt/bin/git symbolic-ref HEAD refs/heads/master
+    /opt/bin/git config branch.master.remote origin
+    /opt/bin/git config branch.master.merge refs/heads/master
+)
+info "  branch: $(cd "$MOONRAKER_DIR" && /opt/bin/git rev-parse --abbrev-ref HEAD)"
+
 # -- 4. Verify Moonraker can import --------------------------------------
 info ""
 info "=== Verify ==="

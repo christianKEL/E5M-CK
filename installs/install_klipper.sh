@@ -133,6 +133,22 @@ KLIPPER_SHA=$(cd "$KLIPPER_DIR" && /opt/bin/git rev-parse HEAD)
 KLIPPER_DESC=$(cd "$KLIPPER_DIR" && /opt/bin/git describe --tags --always)
 info "Checked out: $KLIPPER_DESC ($KLIPPER_SHA)"
 
+# Convert the depth=1 detached-HEAD checkout into a proper local branch
+# tracking origin/master. Without this, Moonraker's update_manager reports
+# "INVALIDE" / "no branch" because there's no branch.<name>.remote config.
+# We don't actually move HEAD — both refs/heads/master and
+# refs/remotes/origin/master point at the same pinned-tag commit.
+info "Configuring branch tracking (master → origin/master at $KLIPPER_DESC)..."
+(
+    cd "$KLIPPER_DIR"
+    /opt/bin/git update-ref refs/remotes/origin/master "$KLIPPER_SHA"
+    /opt/bin/git update-ref refs/heads/master "$KLIPPER_SHA"
+    /opt/bin/git symbolic-ref HEAD refs/heads/master
+    /opt/bin/git config branch.master.remote origin
+    /opt/bin/git config branch.master.merge refs/heads/master
+)
+info "  branch: $(cd "$KLIPPER_DIR" && /opt/bin/git rev-parse --abbrev-ref HEAD)"
+
 # -- 4. Place pre-built c_helper.so --------------------------------------
 info ""
 info "=== c_helper.so ==="
