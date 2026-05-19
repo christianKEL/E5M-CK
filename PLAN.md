@@ -74,7 +74,9 @@ Done in commits `8d7a743` and `00367bc`.
 
 ---
 
-## Phase 3 — Klipper mainline (host-only)  🟡
+## Phase 3 — Klipper mainline (host-only)  🟡 ✅ DONE
+
+**Deployed 2026-05-19:** Klipper v0.13.0 mainline running against stock Creality MCU firmwares. klippy reaches ready state, all stats flowing, 0 warnings. Parallel with Creality stack — both alive.
 
 **Goal:** Install upstream Klipper Python (klippy) at a pinned tag, pointing at the **existing Creality-fork MCU firmwares already on the 3 GD32 chips**. No cross-compile, no firmware flashing, no MCU-level patches in this phase.
 
