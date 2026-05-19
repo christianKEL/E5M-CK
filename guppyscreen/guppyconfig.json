@@ -1,0 +1,56 @@
+{
+  "config_path": "/usr/data/guppyscreen/guppyconfig.json",
+  "default_printer": "e5m-ck",
+  "display_rotate": 0,
+  "display_sleep_sec": -1,
+  "guppy_init_script": "/etc/init.d/S99guppyscreen",
+  "invert_z_icon": null,
+  "log_path": "/usr/data/printer_data/logs/guppyscreen.log",
+  "printers": {
+    "e5m-ck": {
+      "default_macros": {
+        "cooldown": "SET_HEATER_TEMPERATURE HEATER=extruder TARGET=0\nSET_HEATER_TEMPERATURE HEATER=heater_bed TARGET=0",
+        "load_filament": "M83\nG1 E50 F300\nM82",
+        "unload_filament": "M83\nG1 E10 F300\nG1 E-60 F1800\nM82"
+      },
+      "fans": [
+        {
+          "display_name": "Part Fan Front",
+          "id": "fan_generic fan0"
+        },
+        {
+          "display_name": "Part Fan Back",
+          "id": "fan_generic fan1"
+        }
+      ],
+      "leds": [
+        {
+          "display_name": "Chamber Light",
+          "id": "output_pin light_pin"
+        }
+      ],
+      "log_level": "info",
+      "monitored_sensors": [
+        {
+          "color": "red",
+          "controllable": true,
+          "display_name": "Extruder",
+          "id": "extruder"
+        },
+        {
+          "color": "blue",
+          "controllable": true,
+          "display_name": "Bed",
+          "id": "heater_bed"
+        }
+      ],
+      "moonraker_api_key": false,
+      "moonraker_host": "127.0.0.1",
+      "moonraker_port": 7125,
+      "printer_name": "Ender 5 Max (E5M-CK)",
+      "thumbnail_path": null
+    }
+  },
+  "theme": "dark",
+  "wifi_interface": "wlan0"
+}
