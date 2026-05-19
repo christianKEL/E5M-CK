@@ -69,65 +69,132 @@ If Klipper errors with `Unable to open serial port /dev/serial/by-id/...`, the p
 
 ## Calibration sequence
 
-The Eddy needs THREE calibrations in order:
+Source: <https://www.klipper3d.org/Eddy_Probe.html>. Steps MUST run in this order.
 
-### Step A — Drive current (LDC sensor sensitivity)
+With the BTT Eddy mount offsets (x=22, y=0), the **probe** sits over the bed
+center (200, 200) when the **nozzle** is at (X=178, Y=200). All commands
+below assume that placement.
+
+### Step 1 — Drive current (LDC sensor sensitivity)
+
+> "Home the printer and navigate the toolhead so that the sensor is near the
+> center of the bed and is about 20mm above the bed." — Klipper docs
 
 ```
+G28
+G0 X178 Y200 F6000          ; probe over bed center
+G0 Z20 F600                 ; 20 mm above bed (per doc)
 LDC_CALIBRATE_DRIVE_CURRENT CHIP=btt_eddy
+SAVE_CONFIG                 ; (triggers Klipper restart)
 ```
 
-Klipper computes the optimal drive current for the LDC1612. **Cold** is fine.
+Completes in a few seconds. No heating required.
 
-### Step B — Frequency / height map (the probe-to-Z relationship)
+### Step 2 — Frequency / height map (probe-to-Z curve)
 
-This is what teaches Klipper "frequency F = Z height H". Done **cold** too.
+> "For best results the calibration done here and the subsequent probing
+> that utilizes that calibration should be done at the same temperature."
+
+The bed plate's thermal expansion (~0.3 mm across a 300 mm Z-axis swing on
+a 6mm aluminium plate at 60 °C) shifts the LDC frequency. Calibrate at the
+temperature you'll print at — typically **bed = 60 °C**, nozzle warm enough
+to not drag filament on the bed during the paper test but cool enough not
+to ooze (M104 S150 is the safe sweet spot for PLA).
 
 ```
-G28 X Y
-G0 X178 Y200          ; nozzle at (X=178, Y=200) so probe is at (200, 200)
-G0 Z10                ; lift to safe height (>=10 mm — see "golden rule" below)
+M140 S60                    ; bed → 60 °C
+M104 S150                   ; nozzle → 150 °C (no-ooze)
+M190 S60                    ; wait bed
+M109 S150                   ; wait nozzle
+G28
+G0 X178 Y200 F6000
 PROBE_EDDY_CURRENT_CALIBRATE CHIP=btt_eddy
 ```
 
-Klipper prompts: "Adjust the nozzle height so it just barely touches the bed" using `TESTZ Z=-0.1` style commands or paper test. Then `ACCEPT` to record Z=0. The probe sweeps from ~5 mm down to contact and builds the F-H table.
-
-`SAVE_CONFIG` after to persist.
-
-### Step C — Tap calibration (precision Z=0 from a physical tap)
-
-This is the **thermal-dependent** one. Do it AT printing temperatures (bed at 60°C, nozzle at 150°C — hot enough that the bed plate and toolhead are at their print-time expansion state, cold enough not to ooze).
-
-⚠️ Golden rule (from v1 memo): **always lift Z ≥ 10 mm before any tap**. Without the 10 mm baseline, the LDC1612 has no stable frequency window to detect contact slope, and tap fails with `Unable to detect tap: insufficient slope delta`.
+Klipper drops the toolhead and prompts via Fluidd's `manual_probe` dialog.
+Follow the paper test — `TESTZ Z=-0.1` / `TESTZ Z=+0.02` until paper drags,
+then `ACCEPT`. Klipper sweeps probe heights, builds the F→H table.
 
 ```
-M140 S60               ; bed
-M104 S150              ; nozzle (no ooze at 150C for PLA)
-M190 S60               ; wait bed
-M109 S150              ; wait nozzle
-G28 X Y
-G0 X178 Y200
-G0 Z10                 ; mandatory 10mm baseline
-PROBE_EDDY_CURRENT_TAP_CALIBRATE CHIP=btt_eddy
+SAVE_CONFIG                 ; persists z_offset + frequency map
 ```
 
-Look at the suggested `tap_threshold` value (typically 20-50; v1 settled on 28). Then activate with:
+After this, the placeholder `z_offset: 1.0` in `eddy.cfg` is replaced by
+the real value via autosave. Pull live → repo as usual.
+
+#### Verify scan accuracy
 
 ```
-SET_GCODE_OFFSET Z=0
-PROBE METHOD=tap                ; test tap
+G0 X178 Y200 F6000
+G0 Z5 F600
+PROBE_ACCURACY PROBE_METHOD=scan SAMPLES=10
 ```
 
-If reproducible (σ ≤ 0.010 mm over 10 samples), `SAVE_CONFIG`.
+Target: **σ ≤ 0.010 mm** (10 µm). v1 achieves σ ≈ 0.0026 mm. If σ is too
+high, re-run Step 2 — usually means temperature wasn't settled or there
+was debris under the probe.
 
-### Verify probe accuracy
+### Step 3 — Tap calibration (precision Z=0 from physical tap)
+
+Three sub-steps in order. Klipper docs note that **tap does NOT have the
+thermal drift issues** that scan probing has — but the threshold still
+needs calibrating against this specific bed plate + nozzle combo.
+
+Preconditions:
+- `[stepper_z] position_min: <= -1` — checked (we have `-2`).
+- Nozzle and bed CLEAN — any filament or debris invalidates results.
+- **Be ready to slam M112** if the nozzle drives into the bed.
 
 ```
-PROBE_ACCURACY METHOD=scan SAMPLES=10
-PROBE_ACCURACY METHOD=tap SAMPLES=10    ; if tap is calibrated
+G28
+G0 X178 Y200 F6000
+G0 Z5 F600                  ; doc: "between 3 - 10 mm from the bed"
+PROBE_EDDY_CURRENT_TAP_CALIBRATE TAP=guess        ; coarse threshold from scan data
+PROBE_EDDY_CURRENT_TAP_CALIBRATE TAP=refine       ; improve threshold from a real tap
+PROBE_EDDY_CURRENT_TAP_CALIBRATE TAP=verify       ; probes the bed 5x in a row
+SAVE_CONFIG                                       ; persists tap_threshold + tap_z_offset
 ```
 
-Target: **σ ≤ 0.010 mm** (10 µm). v1 achieves σ ≈ 0.0026 mm in scan mode.
+If `TAP=verify` fails (any of the 5 probes inconsistent), do NOT
+`SAVE_CONFIG` — clean the nozzle/bed, re-run `TAP=refine` then `TAP=verify`.
+
+#### Verify tap accuracy
+
+```
+PROBE_ACCURACY PROBE_METHOD=tap SAMPLES=10
+```
+
+Target: **σ ≤ 0.010 mm**.
+
+### Step 4 — Thermal drift compensation (optional)
+
+Only if you see Z drift between cold and hot prints. Uses our
+`[temperature_probe btt_eddy]` thermistor to model frequency-vs-coil-temp.
+
+Preconditions:
+- Bed, nozzle, AND probe coil all **cold** at start.
+- Tool at bed center, Z ≥ 30 mm.
+- Extruder pre-heated to 150-170 °C (above max bed temp, so the nozzle's
+  thermal state doesn't change during the bed sweep).
+
+```
+M104 S160 ; M109 S160         ; nozzle hot before starting
+G28
+G0 X178 Y200 F6000
+G0 Z30 F600                   ; ≥ 30 mm above bed (doc requirement)
+TEMPERATURE_PROBE_CALIBRATE PROBE=btt_eddy TARGET=70
+```
+
+Then drop Z to ~1 mm, run paper test, `ACCEPT`. Klipper heats the bed and
+asks for a manual probe every 2 °C of coil rise (use `TEMPERATURE_PROBE_NEXT`
+to step, `TEMPERATURE_PROBE_COMPLETE` to stop, `ABORT` to bail). At the end:
+
+```
+SAVE_CONFIG
+```
+
+We'll skip Step 4 on first install and only run it if drift shows up in
+actual prints.
 
 ## What changes in printer.cfg
 
