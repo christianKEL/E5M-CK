@@ -1,0 +1,20 @@
+# E5M-CK local configuration.
+#
+# Copy this file to `config.sh` (gitignored) and edit for your printer.
+# All scripts in `scripts/` source it via `scripts/lib/_common.sh`.
+
+# Hostname or IP of the printer on your LAN.
+PRINTER_HOST="192.168.1.94"
+
+# SSH user. Stock Creality firmware uses "root".
+SSH_USER="root"
+
+# Optional: path to the SSH private key. Leave empty to use ssh's default.
+SSH_KEY=""
+
+# Optional: SSH port (default 22).
+SSH_PORT=22
+
+# Optional: directory where backups are stored locally (relative to repo root).
+# Always gitignored.
+BACKUP_DIR="backups-local"

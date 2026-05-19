@@ -8,6 +8,7 @@ Thumbs.db
 .env
 *.local
 secrets/
+config.sh
 
 # Build artifacts
 build/
