@@ -122,20 +122,63 @@ info "Installing klippy-requirements.txt ..."
 "$VENV_DIR/bin/pip" install --upgrade pip >/dev/null
 "$VENV_DIR/bin/pip" install -r "$REQ_FILE" || die "pip install failed."
 
-# -- 4. Verify ------------------------------------------------------------
+# -- 4. c_helper.so (pre-built binary) -----------------------------------
+# Klipper's `klippy/chelper/c_helper.so` is normally compiled on first run
+# by gcc. We don't ship gcc on the printer (saves ~100MB on the small
+# overlay partition). Instead, we pre-place a known-good binary that was
+# built for the Ingenic X2000 (MIPS32r2 little-endian, soft-float).
+#
+# Source: derived from the v1 E5M-CK install (proven to work on this SoC).
+# The binary is downloaded from the v2 repo via the host install path:
+# we expect the caller to have pushed it to /tmp/c_helper.so first via:
+#
+#     scp klipper/binaries/mipsel-3.4/c_helper.so root@printer:/tmp/
+#
+# Then klippy/chelper/__init__.py finds c_helper.so and doesn't try to
+# recompile (we touch -d its mtime to be newer than the source files).
+info ""
+info "=== c_helper.so ==="
+CHELPER_DIR="$KLIPPER_DIR/klippy/chelper"
+CHELPER_DEST="$CHELPER_DIR/c_helper.so"
+CHELPER_SRC="/tmp/c_helper.so"
+
+if [ -f "$CHELPER_SRC" ]; then
+    cp "$CHELPER_SRC" "$CHELPER_DEST"
+    # Touch newer than every .c source so klippy doesn't try to recompile.
+    # Use a far-future date relative to the source files (now is plenty).
+    find "$CHELPER_DIR" -name '*.c' -o -name '*.h' | xargs -I {} touch -t 202001010000.00 {}
+    touch "$CHELPER_DEST"
+    chmod 0755 "$CHELPER_DEST"
+    info "Placed c_helper.so at $CHELPER_DEST"
+    file "$CHELPER_DEST" 2>/dev/null || true
+else
+    warn "/tmp/c_helper.so not found — klippy will try to compile c_helper on first run."
+    warn "If gcc is absent, klippy will fail. To recover:"
+    warn "  scp klipper/binaries/mipsel-3.4/c_helper.so root@printer:/tmp/"
+    warn "  ssh root@printer 'sh /usr/data/e5m-ck/install_klipper.sh'"
+fi
+
+# -- 5. Verify ------------------------------------------------------------
 info ""
 info "=== Verify ==="
 "$VENV_DIR/bin/python3" --version
 "$VENV_DIR/bin/python3" -c 'import cffi, greenlet, jinja2; print("python deps OK")'
 
-# Check that klippy.py is present and Python can at least *import* the module.
+# Check that klippy.py is present and chelper loads (this is the real test).
 KLIPPY_ENTRY="$KLIPPER_DIR/klippy/klippy.py"
 [ -f "$KLIPPY_ENTRY" ] || die "klippy.py not found at $KLIPPY_ENTRY"
+
 "$VENV_DIR/bin/python3" -c "
-import sys; sys.path.insert(0, '$KLIPPER_DIR/klippy')
-# Don't run klippy; just exercise the import machinery on a benign module.
-import util
-print('klippy import path OK')
+import sys, os
+sys.path.insert(0, '$KLIPPER_DIR/klippy')
+os.chdir('$KLIPPER_DIR/klippy')
+try:
+    import chelper
+    ffi_main, ffi_lib = chelper.get_ffi()
+    print('chelper loaded OK; lib =', ffi_lib)
+except Exception as e:
+    print('CHELPER LOAD FAILED:', type(e).__name__, str(e))
+    sys.exit(1)
 "
 
 info ""

@@ -34,18 +34,33 @@ Phase 3 replaces the stock Creality klippy Python process with **upstream Klippe
 ### 1. Prepare the venv on the printer
 
 ```bash
-# From your local machine in the E5M-CK repo
+# From your local machine in the E5M-CK repo:
+
+# (a) Pre-stage the precompiled c_helper.so on the printer.
+#     This avoids klippy trying to compile it on first run (we don't ship
+#     gcc on the printer — costs ~100 MB on the small overlay partition).
+scp klipper/binaries/mipsel-3.4/c_helper.so root@192.168.1.94:/tmp/
+
+# (b) Run the installer.
 cat installs/install_klipper.sh | ssh root@192.168.1.94 'sh -s'
 ```
 
-This script:
+The installer:
 - Backs up the stock `S55klipper_service` to `/usr/data/backup/klipper-stock/`
 - Backs up the stock `printer_data/config/` to `config.stock.tar.gz`
 - Clones Klipper upstream at the pinned tag (default `v0.13.0`) to `/usr/data/e5m-ck/klipper`
 - Creates the venv at `/usr/data/venvs/klippy/` and installs `klippy-requirements.txt`
+- Copies `/tmp/c_helper.so` into `klippy/chelper/` and bumps its mtime so klippy doesn't try to recompile
+- Verifies klippy can `import chelper; chelper.get_ffi()` — proves the binary is ABI-compatible with this Klipper tag
 - Does NOT touch the stock init script or the live `printer.cfg`
 
 Override the pinned tag with `--tag=vX.Y.Z` if needed.
+
+**If the precompiled `c_helper.so` is ABI-incompatible with the chosen Klipper tag**, the verification step in (b) will fail with `CHELPER LOAD FAILED`. Fallback: install gcc + make via Entware (uses ~100 MB on `/overlay`), then re-run the installer — klippy will compile a fresh c_helper.so on first start.
+
+```bash
+ssh root@192.168.1.94 '/opt/bin/opkg install gcc make'
+```
 
 ### 2. Deploy the new config + init script
 
