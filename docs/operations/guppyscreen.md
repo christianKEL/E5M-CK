@@ -106,9 +106,23 @@ ssh root@192.168.1.94 '
 
 Or, more aggressively: `bash scripts/factory-reset.sh --confirm-i-mean-it` (removes `/usr/data/guppyscreen/` and restores stock init scripts via the standard rollback path).
 
+## Touch calibration
+
+GuppyScreen v0.0.26-beta shows its built-in calibration screen on first launch **only when both** conditions are true:
+
+1. `"touch_calibrated": true` in `guppyconfig.json`
+2. `"touch_calibration_coeff"` is absent (or `null`)
+
+Our shipped config sets `touch_calibrated: true` and omits `touch_calibration_coeff` so the calibration screen runs on first install. Tap the four corner crosshairs; GuppyScreen writes the 6-float coefficient array back into `/usr/data/guppyscreen/guppyconfig.json` and skips the screen on subsequent boots.
+
+This means **the live config diverges from the repo** after first calibration. That's expected and benign — `scripts/verify.sh` drift detection will flag it but you can ignore it; the diff is just six floats specific to this physical screen. If you ever want to *force* recalibration, edit `/usr/data/guppyscreen/guppyconfig.json` on the printer to delete the `touch_calibration_coeff` entry, then `S99guppyscreen restart`.
+
+If `touch_calibrated: false` is set instead, GuppyScreen bypasses the calibration path entirely and feeds raw touchscreen coordinates to the UI — this works only if the touch panel's native coordinate system happens to match the framebuffer dimensions (it usually doesn't on Creality Nebula Pads).
+
 ## Known issues
 
 - **Black screen for 5–10 s at startup**: normal. GuppyScreen takes over the framebuffer from the kernel splash. If it stays black > 30 s, something's wrong — `ssh in` and check `guppyscreen.log`.
-- **Touch coordinates inverted/wrong**: change `display_rotate` in `guppyconfig.json` (0/90/180/270).
+- **Calibration screen doesn't appear on first install**: check that `touch_calibrated: true` AND `touch_calibration_coeff` is absent in the deployed `guppyconfig.json`. See the "Touch calibration" section above.
+- **Touch coordinates inverted/wrong** (after calibration): change `display_rotate` in `guppyconfig.json` (0/90/180/270), then recalibrate.
 - **Fans / heaters not controllable from UI**: pin IDs in `guppyconfig.json` must match the Klipper section names (`fan_generic fan0` vs `output_pin fan0` — case-sensitive, space-sensitive).
 - **GuppyScreen restarts in a loop**: usually a Moonraker connection issue (Moonraker not running, or wrong port). Check `curl http://127.0.0.1:7125/server/info` first.
