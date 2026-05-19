@@ -3,9 +3,12 @@
 # E5M-CK S55klipper_service — replaces the stock Creality init script.
 #
 # Differences from stock:
-#   - Points PROG / PY_SCRIPT at our mainline Klipper install:
-#       venv:    /usr/data/venvs/klippy
-#       sources: /usr/data/e5m-ck/klipper
+#   - Points PY_SCRIPT at our mainline Klipper install at
+#     /usr/data/e5m-ck/klipper (instead of the read-only /usr/share/klipper).
+#   - REUSES the stock Creality Python venv (/usr/share/klippy-env). We do
+#     this because the stock venv ships pre-built greenlet + cffi for the
+#     Ingenic MIPS SoC, and we don't want to install gcc on the printer
+#     just to compile those (~100 MB on the small overlay partition).
 #   - Drops the stock `copy_config` / `update_config` / `pcba_test` logic.
 #     Our config is the source of truth and is managed by scripts/sync.sh
 #     from the local repo. No auto-rollback to factory templates.
@@ -16,7 +19,7 @@
 #
 
 USER_DATA=/usr/data
-PROG=/usr/data/venvs/klippy/bin/python3
+PROG=/usr/share/klippy-env/bin/python3
 PY_SCRIPT=/usr/data/e5m-ck/klipper/klippy/klippy.py
 PRINTER_DATA_DIR=$USER_DATA/printer_data
 PRINTER_CONFIG_DIR=$PRINTER_DATA_DIR/config
@@ -30,11 +33,11 @@ mcu_reset() {
 
 start() {
     if [ ! -x "$PROG" ]; then
-        echo "ERROR: $PROG missing. Run installs/install_klipper.sh first." >&2
+        echo "ERROR: $PROG missing. The stock Creality venv has been wiped." >&2
         exit 1
     fi
     if [ ! -f "$PY_SCRIPT" ]; then
-        echo "ERROR: $PY_SCRIPT missing. Klipper source not installed." >&2
+        echo "ERROR: $PY_SCRIPT missing. Run installs/install_klipper.sh first." >&2
         exit 1
     fi
     if [ ! -f "$PRINTER_CONFIG_DIR/printer.cfg" ]; then

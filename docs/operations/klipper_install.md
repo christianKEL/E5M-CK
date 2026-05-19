@@ -7,7 +7,7 @@ Phase 3 replaces the stock Creality klippy Python process with **upstream Klippe
 | Artifact                                          | Stock                                            | E5M-CK v2                                              |
 |---------------------------------------------------|--------------------------------------------------|--------------------------------------------------------|
 | Klipper Python entry point                        | `/usr/share/klipper/klippy/klippy.py` (squashfs) | `/usr/data/e5m-ck/klipper/klippy/klippy.py`            |
-| Python venv                                       | `/usr/share/klippy-env/`                         | `/usr/data/venvs/klippy/`                              |
+| Python venv                                       | `/usr/share/klippy-env/`                         | **same** (we reuse stock; ships pre-built greenlet+cffi) |
 | init script                                       | `/etc/init.d/S55klipper_service` (stock)         | `/etc/init.d/S55klipper_service` (our replacement)     |
 | `printer.cfg`                                     | Creality fork template (CR-10 SE based)          | Mainline-compatible split under `klipper/config/`      |
 | MCU firmwares on the 3 GD32 chips                 | **Creality fork**                                | **Creality fork (unchanged in Phase 3)**               |
