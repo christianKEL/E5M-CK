@@ -138,7 +138,9 @@ Done in commits `8d7a743` and `00367bc`.
 
 ---
 
-## Phase 5 — GuppyScreen  🔴
+## Phase 5 — GuppyScreen  🔴 ✅ DONE
+
+**Deployed 2026-05-19:** GuppyScreen v0.0.26-beta running on the touchscreen, connected to Moonraker via WebSocket. Creality display-server + 8 other obsolete services killed. Network daemons preserved.
 
 **Goal:** Replace Creality `display-server` with GuppyScreen on the local touchscreen.
 
