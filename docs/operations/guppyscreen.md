@@ -119,6 +119,28 @@ This means **the live config diverges from the repo** after first calibration. T
 
 If `touch_calibrated: false` is set instead, GuppyScreen bypasses the calibration path entirely and feeds raw touchscreen coordinates to the UI — this works only if the touch panel's native coordinate system happens to match the framebuffer dimensions (it usually doesn't on Creality Nebula Pads).
 
+## Updates (not in Moonraker's Update Manager — by design)
+
+GuppyScreen does **not** appear in Fluidd's Update Manager widget. This is intentional, not a bug.
+
+The reason: Moonraker v0.10.0's `update_manager` web-type only knows how to extract `.zip` release archives (`zipfile.ZipFile` in `moonraker/components/update_manager/net_deploy.py`). GuppyScreen ships exclusively `.tar.gz` artifacts in its GitHub releases. No native Moonraker type fits.
+
+The Guilouz Creality-Helper-Script reaches the same conclusion: its `moonraker.conf` doesn't have an `[update_manager guppyscreen]` section either. The community pattern is to manage GuppyScreen updates outside Moonraker.
+
+For E5M-CK v2, this aligns with our GitOps stance: the repo is the source of truth, not the UI button. To upgrade:
+
+```bash
+# 1. Pick a new tag from https://github.com/ballaswag/guppyscreen/releases
+# 2. Bump GUPPY_TAG in installs/install_guppyscreen.sh
+# 3. Commit + push the repo change
+# 4. Re-run the installer on the printer:
+cat installs/install_guppyscreen.sh | ssh root@192.168.1.94 'sh -s -- --tag=X.Y.Z-beta'
+# 5. Restart:
+ssh root@192.168.1.94 '/etc/init.d/S99guppyscreen restart'
+```
+
+`install_guppyscreen.sh` is idempotent and will detect the version mismatch via the `.e5m-ck-version` stamp in `/usr/data/guppyscreen/`, stop the running Guppy, replace the install, and let you start the new version.
+
 ## Known issues
 
 - **Black screen for 5–10 s at startup**: normal. GuppyScreen takes over the framebuffer from the kernel splash. If it stays black > 30 s, something's wrong — `ssh in` and check `guppyscreen.log`.
