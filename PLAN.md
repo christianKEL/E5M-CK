@@ -19,7 +19,7 @@ Done in commits `8d7a743` and `00367bc`.
 
 ---
 
-## Phase 1 — Tooling & safety net  🟡
+## Phase 1 — Tooling & safety net  🟡 ✅ DONE
 
 **Goal:** Have read-only and reversible tooling in place *before* any destructive action on the printer.
 
