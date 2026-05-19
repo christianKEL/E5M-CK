@@ -95,3 +95,73 @@ info "Fluidd $FLUIDD_TAG installed at $FLUIDD_DIR ($(du -sh "$FLUIDD_DIR" | awk 
 info "Files: $(find "$FLUIDD_DIR" -type f | wc -l)"
 info ""
 info "nginx serves this dir on port 80 once S99znginx is in place."
+
+# -- Seed Fluidd UI preferences in Moonraker DB ---------------------------
+# Fluidd reads its UI settings (axis invert toggles, jog speeds, theme,
+# etc.) from Moonraker's database (namespace=fluidd, root key=uiSettings)
+# on every page load / WebSocket reconnect. There is NO localStorage
+# cache for these — seeding the DB once makes the values stick for every
+# browser, fresh or otherwise.
+#
+# Reference: fluidd-core/fluidd src/store/socket/actions.ts:221-257
+# (unconditional DB read on identify) + src/store/config/mutations.ts
+# (deep-merge onto defaults).
+#
+# Keys set here (all under namespace=fluidd):
+#   uiSettings.general.axis.z.inverted        -> true   (CoreXY: bed is fixed,
+#                                                       gantry moves; Fluidd's
+#                                                       bed-slinger default is
+#                                                       wrong for us)
+#   uiSettings.general.defaultToolheadXYSpeed -> 20     (mm/s; matches Guppy)
+#   uiSettings.general.defaultToolheadZSpeed  -> 20     (mm/s; matches Guppy)
+#
+# Speeds chosen to match Guppy Screen so both UIs feel identical.
+# Guppy hardcodes F1200 (= 20 mm/s) for all axes — see ballaswag/guppyscreen
+# src/homing_panel.cpp:181-206 (lines emitting "G0 X|Y|Z{dist} F1200").
+# Fluidd's defaults are 130 mm/s XY and 10 mm/s Z, which makes Z feel
+# noticeably slower than Guppy. Both 20 values are well under our
+# [printer] max_velocity=1000 / max_z_velocity=30.
+info ""
+info "=== Seed Fluidd UI preferences (Moonraker DB) ==="
+
+MOONRAKER_URL="http://127.0.0.1:7125"
+
+# Wait up to 30s for Moonraker to be reachable (it may have just been
+# (re)started, or this might be running before S56moonraker_service is up).
+MOONRAKER_READY=0
+for i in $(seq 1 30); do
+    if /opt/bin/curl -fsS "$MOONRAKER_URL/server/info" >/dev/null 2>&1; then
+        MOONRAKER_READY=1
+        break
+    fi
+    sleep 1
+done
+
+if [ "$MOONRAKER_READY" -eq 0 ]; then
+    warn "Moonraker not reachable on $MOONRAKER_URL within 30s."
+    warn "Skipping Fluidd preference seeding. To apply later, re-run this script"
+    warn "once Moonraker is up, or POST manually to /server/database/item."
+else
+    info "Moonraker reachable. Seeding 3 preference keys..."
+
+    seed_fluidd_pref() {
+        # $1: dotted key under namespace=fluidd
+        # $2: raw JSON value (true / false / number / "string")
+        _key="$1"
+        _value="$2"
+        if /opt/bin/curl -fsS -X POST "$MOONRAKER_URL/server/database/item" \
+            -H 'Content-Type: application/json' \
+            -d "{\"namespace\":\"fluidd\",\"key\":\"$_key\",\"value\":$_value}" \
+            >/dev/null; then
+            info "  set $_key = $_value"
+        else
+            warn "  failed to set $_key"
+        fi
+    }
+
+    seed_fluidd_pref "uiSettings.general.axis.z.inverted"        "true"
+    seed_fluidd_pref "uiSettings.general.defaultToolheadXYSpeed" "20"
+    seed_fluidd_pref "uiSettings.general.defaultToolheadZSpeed"  "20"
+
+    info "Done. Refresh Fluidd in the browser to see the new defaults."
+fi
