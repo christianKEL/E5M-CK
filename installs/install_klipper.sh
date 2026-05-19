@@ -32,7 +32,11 @@
 set -eu
 
 KLIPPER_REPO="https://github.com/Klipper3d/klipper.git"
-KLIPPER_TAG="v0.13.0"
+# master tip pinned for BTT Eddy tap support (PROBE_EDDY_CURRENT_TAP_CALIBRATE
+# landed in master post-v0.13.0, around April-May 2026). Tag value is "master"
+# here — re-running the install fetches latest master. To pin to a specific
+# commit, pass --tag=<sha> or change this value.
+KLIPPER_TAG="master"
 
 KLIPPER_DIR="/usr/data/e5m-ck/klipper"
 STOCK_VENV="/usr/share/klippy-env"
