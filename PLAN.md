@@ -110,7 +110,9 @@ Done in commits `8d7a743` and `00367bc`.
 
 ---
 
-## Phase 4 — Moonraker + nginx + Fluidd  🟡
+## Phase 4 — Moonraker + nginx + Fluidd  🟡 ✅ DONE
+
+**Deployed 2026-05-19:** Moonraker v0.10.0 + nginx + Fluidd v1.37.0 live. `curl http://printer/server/info` returns `klippy_connected:true, klippy_state:ready`. Fluidd HTML served. Creality web-server killed on port 80; app-server (9999) keeps running.
 
 **Goal:** Open-source API + web UI working end-to-end.
 
