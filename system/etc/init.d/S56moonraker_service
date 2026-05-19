@@ -7,9 +7,10 @@
 #
 
 PROG=/usr/data/venvs/moonraker/bin/python3
-PY_SCRIPT=/usr/data/e5m-ck/moonraker/moonraker/server.py
-CONFIG=/usr/data/printer_data/config/moonraker.conf
-LOG_FILE=/usr/data/printer_data/logs/moonraker.log
+MOONRAKER_ROOT=/usr/data/e5m-ck/moonraker
+DATA_PATH=/usr/data/printer_data
+CONFIG="$DATA_PATH/config/moonraker.conf"
+LOG_FILE="$DATA_PATH/logs/moonraker.log"
 PID_FILE=/var/run/moonraker.pid
 
 start() {
@@ -17,8 +18,8 @@ start() {
         echo "ERROR: $PROG missing. Run install_moonraker.sh first." >&2
         exit 1
     fi
-    if [ ! -f "$PY_SCRIPT" ]; then
-        echo "ERROR: $PY_SCRIPT missing. Moonraker source not installed." >&2
+    if [ ! -f "$MOONRAKER_ROOT/moonraker/server.py" ]; then
+        echo "ERROR: Moonraker source not installed at $MOONRAKER_ROOT." >&2
         exit 1
     fi
     if [ ! -f "$CONFIG" ]; then
@@ -26,13 +27,22 @@ start() {
         exit 1
     fi
 
-    mkdir -p "$(dirname "$LOG_FILE")"
+    # Ensure the standard Klipper data layout exists.
+    mkdir -p "$DATA_PATH/config" "$DATA_PATH/logs" "$DATA_PATH/gcodes" \
+             "$DATA_PATH/database" "$DATA_PATH/comms" "$DATA_PATH/certs"
 
-    # Moonraker needs the source dir on PYTHONPATH so `import moonraker.server`
-    # works without an editable install.
-    HOME=/root PYTHONPATH=/usr/data/e5m-ck/moonraker \
+    # Moonraker uses relative imports (from . import ...) — must run as a
+    # module (`python -m moonraker.server`), not as a script. PYTHONPATH
+    # makes `moonraker` importable from the cloned source dir.
+    # -d sets the data path (Moonraker writes db, jobs, comms socket there).
+    # -c overrides the default $DATA_PATH/config/moonraker.conf lookup.
+    # `python -m moonraker` runs moonraker/__main__.py which calls
+    # server.main(). Note: `-m moonraker.server` does NOT work because
+    # server.py is missing an `if __name__ == "__main__"` block in v0.10.0.
+    HOME=/root PYTHONPATH="$MOONRAKER_ROOT" \
         start-stop-daemon -S -q -b -m -p "$PID_FILE" \
-        --exec "$PROG" -- "$PY_SCRIPT" \
+        --exec "$PROG" -- -m moonraker \
+        -d "$DATA_PATH" \
         -c "$CONFIG" \
         -l "$LOG_FILE"
 }

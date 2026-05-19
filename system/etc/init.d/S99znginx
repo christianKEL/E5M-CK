@@ -27,11 +27,16 @@ start() {
     fi
 
     # Free port 80 — kill Creality's stock web-server if running.
-    if pgrep -f '/usr/bin/web-server' >/dev/null 2>&1; then
-        echo "Stopping Creality web-server to free port 80..."
-        pkill -TERM -f '/usr/bin/web-server' 2>/dev/null
+    # busybox doesn't ship pkill/pgrep, so we use pidof which IS in busybox.
+    WS_PIDS=$(pidof web-server 2>/dev/null || true)
+    if [ -n "$WS_PIDS" ]; then
+        echo "Stopping Creality web-server (PIDs: $WS_PIDS) to free port 80..."
+        kill -TERM $WS_PIDS 2>/dev/null
         sleep 1
-        pkill -KILL -f '/usr/bin/web-server' 2>/dev/null
+        # Re-check; force-kill anything still alive.
+        WS_PIDS=$(pidof web-server 2>/dev/null || true)
+        [ -n "$WS_PIDS" ] && kill -KILL $WS_PIDS 2>/dev/null
+        sleep 1
     fi
 
     echo "Starting nginx with $NGINX_CONF ..."
