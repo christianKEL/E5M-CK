@@ -219,6 +219,47 @@ SAVE_CONFIG
 We'll skip Step 4 on first install and only run it if drift shows up in
 actual prints.
 
+## Syncing autosave back into the repo
+
+After any `PROBE_EDDY_CURRENT_CALIBRATE` / `LDC_CALIBRATE_DRIVE_CURRENT` /
+`PROBE_EDDY_CURRENT_TAP_CALIBRATE` + `SAVE_CONFIG` cycle, Klipper writes
+the new values into the autosave block at the bottom of the LIVE
+`/usr/data/printer_data/config/printer.cfg`. The repo's
+`klipper/config/eddy.cfg` then lags behind. To re-sync:
+
+```bash
+# 1. Read the live autosave block
+ssh root@192.168.1.94 'awk "/^#\*# <----------/,0" /usr/data/printer_data/config/printer.cfg | sed "s/^#\*# //"' > /tmp/autosave.txt
+
+# 2. Look at the [probe_eddy_current btt_eddy] and [temperature_probe btt_eddy]
+#    sections in /tmp/autosave.txt. Copy:
+#      - reg_drive_current
+#      - tap_threshold  (only after Step 3 ran)
+#      - calibrate (the full F→H table)
+#    into klipper/config/eddy.cfg under [probe_eddy_current btt_eddy], and
+#      - calibration_temp
+#    under [temperature_probe btt_eddy].
+
+# 3. Commit. The live autosave block stays — Klipper merges it on top of
+#    the regular section at load time; the two now match.
+git add klipper/config/eddy.cfg
+git commit -m "eddy.cfg: re-sync autosave (cal date YYYY-MM-DD)"
+```
+
+**Why this dual-storage pattern**: Klipper insists on owning the
+autosave block in the live `printer.cfg`. We can't write our repo values
+there directly without losing them on the next SAVE_CONFIG. Instead we
+mirror them into the regular config sections; Klipper happily merges
+both. The repo therefore stays self-sufficient (a clean `sync.sh` from
+scratch reproduces the calibrated state), while live cals still work.
+
+If you push our repo's `printer.cfg` to a printer whose live file has a
+DIFFERENT autosave block, do NOT raw-`scp printer.cfg` — that wipes the
+live autosave and loses any cal not yet re-synced. Edit in place with
+`sed`/`awk` instead. See
+`~/.claude/projects/.../memory/feedback_dont_scp_printer_cfg.md` for
+the full burn-postmortem.
+
 ## What changes in printer.cfg
 
 - `[include eddy.cfg]` added near the top.
