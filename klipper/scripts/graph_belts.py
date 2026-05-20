@@ -85,7 +85,10 @@ def is_file_open(filepath):
 # Calculate estimated "power spectral density" using existing Klipper tools
 def calc_freq_response(data):
     helper = shaper_calibrate.ShaperCalibrate(printer=None)
-    return helper.process_accelerometer_data(data)
+    # Klipper master (2025+) requires a 'name' arg before data. The name
+    # is used in error messages; we pass a literal label since this script
+    # doesn't carry the CSV filename down this far.
+    return helper.process_accelerometer_data('belts', data)
 
 
 # Calculate or estimate a "similarity" factor between two PSD curves and scale it to a percentage. This is
