@@ -43,8 +43,13 @@ import numpy as np
 from . import shaper_calibrate
 
 LIVE_CFG = '/usr/data/printer_data/config/printer.cfg'
-CSV_X = '/tmp/calibration_data_x_*.csv'
-CSV_Y = '/tmp/calibration_data_y_*.csv'
+# Both naming patterns are supported. Fluidd's MEASURE_AXIS uses
+# SHAPER_CALIBRATE which writes calibration_data_<axis>_<ts>.csv (PSD).
+# GuppyScreen's Input Shaper button uses TEST_RESONANCES which writes
+# resonances_<axis>_<axis>.csv (raw accelerometer data). The newest of
+# all matches wins.
+CSV_X = ['/tmp/calibration_data_x_*.csv', '/tmp/resonances_x_*.csv']
+CSV_Y = ['/tmp/calibration_data_y_*.csv', '/tmp/resonances_y_*.csv']
 
 
 class ShaperMaxAccelApply:
@@ -57,11 +62,17 @@ class ShaperMaxAccelApply:
                  'apply (SET_VELOCITY_LIMIT + rewrite live printer.cfg).'
         )
 
-    def _newest(self, pattern):
-        files = glob.glob(pattern)
-        if not files:
+    def _newest(self, patterns):
+        # patterns can be a str (one glob) or a list of globs (returns
+        # the absolute newest match across all of them).
+        if isinstance(patterns, str):
+            patterns = [patterns]
+        candidates = []
+        for p in patterns:
+            candidates.extend(glob.glob(p))
+        if not candidates:
             return None
-        return max(files, key=os.path.getmtime)
+        return max(candidates, key=os.path.getmtime)
 
     def _scv(self):
         # find_best_shaper's smoothing calc needs square_corner_velocity; with
