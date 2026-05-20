@@ -29,6 +29,56 @@ So we bridge on the host side:
 All three .py files are staged into `klippy/extras/` by
 `install_klipper.sh` via the `/tmp/klipper_extras_*.py` pipeline.
 
+## The matplotlib `ft2font` ABI fix (mandatory before any PNG works)
+
+`calibrate_shaper.py` and `graph_belts.py` both use matplotlib to render
+the PNGs. The Creality-pre-installed matplotlib 2.2.3 in
+`/usr/share/klippy-env/` ships an `ft2font.cpython-38-mipsel-linux-gnu.so`
+that was statically compiled against freetype 2.6–2.8 headers (2017).
+On this printer `libfreetype.so.6` is freetype 2.13 (Entware), and the
+struct layouts have changed. Result: any `matplotlib.pyplot` import
+walks into `font_manager` which calls into freetype with a mis-sized
+`FT_Stream`, and on cleanup the C++ runtime aborts:
+
+```
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  Couldn't close file
+Aborted
+```
+
+This kills every PNG generation, instantly, with no recovery.
+
+**Fix (already automated in `install_input_shaper.sh`):** swap matplotlib's
+broken `ft2font.so` for the ABI-fixed version that ballaswag's GuppyScreen
+project ships at `/usr/data/guppyscreen/k1_mods/ft2font.cpython-38-mipsel-linux-gnu.so`.
+That binary is dynamically linked against a modern freetype and works
+against 2.13 cleanly. md5 `7706852f09ad75472d15ff790ecc0d55`, 101564 bytes.
+
+The installer keeps a backup at `${ORIG}.original` and verifies the swap
+with md5 before continuing. It's idempotent: if the K1-mod is already in
+place, it's a no-op.
+
+**Why this depends on GuppyScreen:** the K1-mod binary only exists on the
+filesystem because `install_guppyscreen.sh` placed it under
+`/usr/data/guppyscreen/k1_mods/`. So the installation order is
+`install_guppyscreen.sh` → `install_klipper.sh` → `install_input_shaper.sh`.
+If you `creality_kill`'d GuppyScreen but kept its k1_mods dir, that's
+fine — we only need the .so file, not GuppyScreen as a service.
+
+What we tried first that did NOT work (recorded for future readers):
+
+- Disabling fonts one-by-one — every iteration the next font crashes,
+  because it's an ABI bug not a corrupt-font bug.
+- `matplotlib.use('Agg')` — crash happens during font_manager init,
+  before the backend matters.
+- Native pip install of newer matplotlib — Entware ships libfreetype
+  but not the dev headers, so the C extension build fails.
+- Cross-compiling matplotlib in Codespaces — 2–4 h of toolchain
+  wrangling for an uncertain outcome, abandoned in favor of the K1 mod.
+
+(See [`assets/memos/MEMO_guppyscreen_belts_ENG.md`](https://github.com/christianKEL/E5M-CK/blob/main/assets/memos/MEMO_guppyscreen_belts_ENG.md)
+on the v1 branch for the full investigation history.)
+
 ## v1 → v2 changes
 
 | Concern | v1 | v2 |
