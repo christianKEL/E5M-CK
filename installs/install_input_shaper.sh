@@ -70,19 +70,20 @@ for required in accel_chip_proxy.py adxl345_creality.py gcode_shell_command.py s
 done
 info "All four .py extras present in $EXTRAS_DIR/"
 
-for required in gen_shaper_png.sh gen_belts_png.sh graph_belts.py; do
+for required in gen_shaper_png.sh gen_belts_png.sh gen_shaper_for_guppy.sh graph_belts.py; do
     [ -f "/tmp/$required" ] || die "/tmp/$required missing. Staging step skipped?"
 done
-info "All three /tmp/ artifacts present"
+info "All four /tmp/ artifacts present"
 
 # -- 1. Shell helpers -----------------------------------------------------
 info ""
 info "=== Shell helpers ==="
 mkdir -p "$BIN_DIR"
-cp /tmp/gen_shaper_png.sh "$BIN_DIR/gen_shaper_png.sh"
-cp /tmp/gen_belts_png.sh  "$BIN_DIR/gen_belts_png.sh"
-chmod 0755 "$BIN_DIR/gen_shaper_png.sh" "$BIN_DIR/gen_belts_png.sh"
-info "  installed gen_shaper_png.sh + gen_belts_png.sh in $BIN_DIR/"
+cp /tmp/gen_shaper_png.sh        "$BIN_DIR/gen_shaper_png.sh"
+cp /tmp/gen_belts_png.sh         "$BIN_DIR/gen_belts_png.sh"
+cp /tmp/gen_shaper_for_guppy.sh  "$BIN_DIR/gen_shaper_for_guppy.sh"
+chmod 0755 "$BIN_DIR/gen_shaper_png.sh" "$BIN_DIR/gen_belts_png.sh" "$BIN_DIR/gen_shaper_for_guppy.sh"
+info "  installed gen_shaper_png.sh + gen_belts_png.sh + gen_shaper_for_guppy.sh in $BIN_DIR/"
 
 # -- 2. graph_belts.py ----------------------------------------------------
 info ""
