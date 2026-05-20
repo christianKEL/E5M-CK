@@ -86,6 +86,42 @@ ssh root@192.168.1.94 '/opt/bin/opkg install gcc make'
 
 **Not recommended** unless you're actively iterating on chelper — the disk-space cost is real and you risk filling the overlay.
 
+### Custom `klippy/extras/` Python modules
+
+Some of our needs aren't covered by upstream Klipper config options. We
+keep small Python modules in `klipper/extras/` (in this repo) and have
+`install_klipper.sh` copy them into the live `klippy/extras/` directory
+at install time. Each module is a normal Klipper extra — load it by
+referencing its section name in `printer.cfg`.
+
+Current modules:
+
+| File                              | Section in printer.cfg     | Purpose                                                             |
+|-----------------------------------|----------------------------|---------------------------------------------------------------------|
+| `mcu_deprecation_filter.py`       | `[mcu_deprecation_filter]` | Silence specific `deprecated_mcu_code` warnings (Creality MCU firmware kept for factory-reset rollback). |
+
+**Why this is OK** vs. just patching Klipper source:
+- The files live in our repo with our own commit history and rationale.
+- `install_klipper.sh` reinstalls them on every Klipper upgrade, so a
+  `git pull` of upstream Klipper master can't silently delete them.
+- Each module documents its purpose in a top-of-file docstring and
+  requires a `reason: ...` config line that gets echoed to `klippy.log`
+  at startup. Removing the section in `printer.cfg` is the rollback.
+
+**Deploy flow** when adding a new one:
+1. Write the module in `klipper/extras/<name>.py`, with a header
+   docstring that explains why it exists and how to roll it back.
+2. Stage to the printer's `/tmp/`:
+   ```bash
+   for f in klipper/extras/*.py; do
+     scp -O "$f" root@192.168.1.94:/tmp/klipper_extras_$(basename "$f")
+   done
+   ```
+3. Re-run `installs/install_klipper.sh` — its `4b.` step copies anything
+   matching `/tmp/klipper_extras_*.py` into `klippy/extras/`.
+4. Add the `[<section>]` block to `printer.cfg` (in this repo) before
+   any section it needs to wrap, and sync.
+
 ### 2. Deploy the new config + init script
 
 ```bash

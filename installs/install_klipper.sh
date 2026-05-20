@@ -19,15 +19,22 @@
 # What we DO install:
 #   - Klipper source at the pinned tag -> /usr/data/e5m-ck/klipper
 #   - Pre-built c_helper.so (from klipper/binaries/mipsel-3.4/) -> klippy/chelper/
+#   - Custom klippy/extras/ Python modules (from klipper/extras/<name>.py)
+#     when pre-staged at /tmp/klipper_extras_<name>.py
 #   - python-can (pure-Python; only needed if any [mcu] uses canbus_uuid)
 #
 # What we DON'T touch:
 #   - /etc/init.d/S55klipper_service (handled by scripts/sync.sh on the host)
 #   - /usr/data/printer_data/config/printer.cfg (handled by sync.sh)
 #
-# Usage (over SSH from local, after `scp -O c_helper.so /tmp/`):
+# Usage (over SSH from local, after staging artifacts to /tmp/):
+#   scp -O klipper/binaries/mipsel-3.4/c_helper.so root@printer:/tmp/
+#   # Any custom klippy/extras modules:
+#   for f in klipper/extras/*.py; do
+#     scp -O "$f" root@printer:/tmp/klipper_extras_$(basename "$f")
+#   done
 #   cat installs/install_klipper.sh | ssh root@printer 'sh -s'
-#   cat installs/install_klipper.sh | ssh root@printer 'sh -s -- --tag=v0.13.0'
+#   cat installs/install_klipper.sh | ssh root@printer 'sh -s -- --tag=master'
 
 set -eu
 
@@ -168,6 +175,21 @@ find "$CHELPER_DIR" \( -name '*.c' -o -name '*.h' \) -exec touch -t 202001010000
 touch "$CHELPER_DEST"
 chmod 0755 "$CHELPER_DEST"
 info "Placed c_helper.so at $CHELPER_DEST ($(wc -c < "$CHELPER_DEST") bytes)"
+
+# -- 4b. Place custom Klipper extras (e5m-ck-specific Python modules) ----
+# These ship in our repo and silence specific warnings or add small
+# helpers that Klipper master doesn't expose natively. Each .py file
+# is documented at its top.
+info ""
+info "=== Custom klippy/extras modules ==="
+KLIPPY_EXTRAS="$KLIPPER_DIR/klippy/extras"
+for extras_src in /tmp/klipper_extras_*.py; do
+    [ -f "$extras_src" ] || continue
+    fname=$(basename "$extras_src" | sed 's/^klipper_extras_//')
+    cp "$extras_src" "$KLIPPY_EXTRAS/$fname"
+    chmod 0644 "$KLIPPY_EXTRAS/$fname"
+    info "  installed klippy/extras/$fname ($(wc -c < "$KLIPPY_EXTRAS/$fname") bytes)"
+done
 
 # -- 5. Verify chelper loads ---------------------------------------------
 info ""
