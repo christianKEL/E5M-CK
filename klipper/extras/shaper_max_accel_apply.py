@@ -91,7 +91,13 @@ class ShaperMaxAccelApply:
             for header in f:
                 if not header.startswith('#'):
                     break
-        helper = shaper_calibrate.ShaperCalibrate(printer=self.printer)
+        # ShaperCalibrate(printer=None) matches what scripts/calibrate_shaper.py
+        # uses, so find_best_shaper runs through the exact same code path
+        # (synchronous, no multiprocessing fork). With printer=self.printer,
+        # background_process_exec forks a child — same math in theory, but
+        # we observed a ~1-2 Hz drift in the best-fit MZV frequency vs the
+        # script. printer=None gives byte-identical results to the script.
+        helper = shaper_calibrate.ShaperCalibrate(printer=None)
         if not header.startswith('freq,'):
             # Raw accelerometer CSV (TEST_RESONANCES OUTPUT=raw_data)
             data = np.loadtxt(path, comments='#', delimiter=',')
@@ -113,7 +119,23 @@ class ShaperMaxAccelApply:
                 psd_y=data[:, 2],
                 psd_z=data[:, 3])
             cal.set_numpy(np)
-        best, _all = helper.find_best_shaper(cal, scv=self._scv())
+            # Match scripts/calibrate_shaper.py parse_log exactly: if the
+            # CSV doesn't include pre-fitted shaper columns (',shapers:'),
+            # the PSD is raw and needs normalization. SHAPER_CALIBRATE's
+            # CSVs include the shapers column and are pre-normalized;
+            # TEST_RESONANCES's (what GuppyScreen and our MEASURE_AXIS now
+            # produce) do not, so we must normalize here. Missing this
+            # step gives ~1-2 Hz drift in the fitted MZV frequency.
+            if ',shapers:' not in header:
+                cal.normalize_to_frequencies()
+        # shapers=['mzv'] forces the recommendation to MZV always: the
+        # candidate set is reduced to a single shaper, so it is by
+        # definition the best. Matches the --shapers=mzv flag we pass to
+        # calibrate_shaper.py in the PNG-generation path (gen_shaper_for_guppy.sh).
+        # The user's calibrated machine is mzv-optimal across the resonance
+        # range we sweep; restricting upfront keeps both flows identical.
+        best, _all = helper.find_best_shaper(
+            cal, shapers=['mzv'], scv=self._scv())
         return best
 
     def _rewrite_max_accel(self, new_val):
@@ -175,6 +197,22 @@ class ShaperMaxAccelApply:
                 new_ma))
         self.gcode.run_script_from_command(
             'SET_VELOCITY_LIMIT ACCEL=%d' % new_ma)
+
+        # Write [input_shaper] autosave entries via configfile.set.
+        # Mirrors what Klipper's SHAPER_CALIBRATE does internally, so the
+        # next SAVE_CONFIG persists the calibrated shaper. Both axes are
+        # always MZV (we forced shapers=['mzv'] in _best_for_csv).
+        configfile = self.printer.lookup_object('configfile')
+        configfile.set('input_shaper', 'shaper_type_x', x_best.name)
+        configfile.set('input_shaper', 'shaper_freq_x', '%.1f' % x_best.freq)
+        configfile.set('input_shaper', 'shaper_type_y', y_best.name)
+        configfile.set('input_shaper', 'shaper_freq_y', '%.1f' % y_best.freq)
+        gcmd.respond_info(
+            'Staged [input_shaper] autosave: '
+            'shaper_type_x=%s shaper_freq_x=%.1f, '
+            'shaper_type_y=%s shaper_freq_y=%.1f. Run SAVE_CONFIG to persist.' % (
+                x_best.name, x_best.freq, y_best.name, y_best.freq))
+
         try:
             self._rewrite_max_accel(new_ma)
             gcmd.respond_info(
