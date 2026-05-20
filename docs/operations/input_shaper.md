@@ -71,16 +71,10 @@ You should see `MEASURE_AXIS`, `MEASURE_BELTS`, `SHAPER_PNG`,
 
 ## First calibration
 
-> ⚠️ **DO NOT run `SAVE_CONFIG` after MEASURE_AXIS.** Klipper's autosave
-> for `[input_shaper]` conflicts with the values we keep in
-> `input_shaper.cfg` (Klipper rejects with "section 'input_shaper'
-> option 'shaper_type_x' conflicts with included value"). Worse, on
-> some failure paths the conflict check passes too late and Klipper
-> wipes the autosave block, taking the Eddy cal values down with it
-> (recovered from `eddy.cfg`, but ugly).
->
-> Workflow is: run the macros, READ the recommendation from the
-> console, manually edit `klipper/config/input_shaper.cfg`, sync, restart.
+`[input_shaper]` is a Klipper unique section. Convention: it lives ONLY
+in the autosave block at the bottom of the LIVE `printer.cfg`. Our
+included `input_shaper.cfg` deliberately does NOT define it, so
+`SAVE_CONFIG` can write it cleanly.
 
 1. Run:
    ```
@@ -90,12 +84,10 @@ You should see `MEASURE_AXIS`, `MEASURE_BELTS`, `SHAPER_PNG`,
    - If not homed, the macro runs `G28` first.
    - Toolhead goes to (X=200, Y=200, Z=10) — center of bed.
    - `SHAPER_CALIBRATE AXIS=X` runs (~45 s sweep + analysis).
-   - Klipper prints the recommended shaper type + frequency in the
-     Fluidd console:
+   - Klipper prints the recommendation:
      ```
      // Recommended shaper_type_x = mzv, shaper_freq_x = 50.0 Hz
      ```
-     Note them.
 
 2. Repeat for Y:
    ```
@@ -108,31 +100,30 @@ You should see `MEASURE_AXIS`, `MEASURE_BELTS`, `SHAPER_PNG`,
    SHAPER_PNG AXIS=y
    ```
    PNGs land in
-   `/usr/data/printer_data/config/printer_calibration_graphs/` and
-   are visible in Fluidd's Configuration tab.
+   `/usr/data/printer_data/config/printer_calibration_graphs/`.
 
-4. **Manually update `klipper/config/input_shaper.cfg`** with the four
-   values from the console output:
-   ```ini
-   [input_shaper]
-   shaper_type_x: mzv
-   shaper_freq_x: 50.0
-   shaper_type_y: mzv
-   shaper_freq_y: 40.0
+4. Persist:
    ```
+   SAVE_CONFIG
+   ```
+   Klipper writes `[input_shaper]` to the autosave block at the bottom
+   of the LIVE `printer.cfg`, then restarts. Done.
 
-5. Push and restart:
-   ```bash
-   bash scripts/sync.sh --apply
-   ssh root@192.168.1.94 '/etc/init.d/S55klipper_service restart'
-   ```
+## Re-sync to the repo (optional)
 
-6. Commit:
-   ```bash
-   git add klipper/config/input_shaper.cfg
-   git commit -m "input_shaper: cal $(date -I) — X mzv@50, Y mzv@40"
-   git push
-   ```
+The autosave block is on the live printer only. To make a fresh
+`sync.sh` from this repo reproduce a calibrated state, you have two
+options:
+
+- **Re-run the cal**. Calibration takes 90 seconds and is deterministic
+  for a given mechanical state — usually fastest.
+- **Vendor the values as a comment block** at the bottom of
+  `klipper/config/input_shaper.cfg` (only a record; the actual values
+  must be in the autosave for SAVE_CONFIG to keep working). Pull from
+  the live with:
+  ```bash
+  ssh root@192.168.1.94 'awk "/#\*# \[input_shaper\]/,/^[^#]/" /usr/data/printer_data/config/printer.cfg'
+  ```
 
 ## Belt-tension comparison (CoreXY health check)
 
