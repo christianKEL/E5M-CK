@@ -64,11 +64,11 @@ info "=== Preflight ==="
 [ -d "$KLIPPER_DIR/.git" ] || die "Klipper not installed at $KLIPPER_DIR. Run install_klipper.sh first."
 [ -d "$EXTRAS_DIR" ]       || die "$EXTRAS_DIR missing — broken Klipper install?"
 
-for required in accel_chip_proxy.py adxl345_creality.py gcode_shell_command.py; do
+for required in accel_chip_proxy.py adxl345_creality.py gcode_shell_command.py shaper_max_accel_apply.py; do
     [ -f "$EXTRAS_DIR/$required" ] \
         || die "$required not in $EXTRAS_DIR/ — re-run install_klipper.sh with klipper/extras/*.py staged via /tmp/klipper_extras_*"
 done
-info "All three .py extras present in $EXTRAS_DIR/"
+info "All four .py extras present in $EXTRAS_DIR/"
 
 for required in gen_shaper_png.sh gen_belts_png.sh graph_belts.py; do
     [ -f "/tmp/$required" ] || die "/tmp/$required missing. Staging step skipped?"

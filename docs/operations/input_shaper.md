@@ -159,6 +159,53 @@ included `input_shaper.cfg` deliberately does NOT define it, so
    Klipper writes `[input_shaper]` to the autosave block at the bottom
    of the LIVE `printer.cfg`, then restarts. Done.
 
+## Automatic `max_accel` adjustment
+
+`SHAPER_CALIBRATE` prints a "suggested max_accel <= N mm/sec^2" line per
+fitted shaper but never writes it anywhere — `[printer] max_accel` is
+not in Klipper's autosave list and is treated as a human-curated value.
+
+To avoid forgetting to update it after a fresh cal, our `MEASURE_AXIS`
+macro invokes `APPLY_SHAPER_MAX_ACCEL` automatically after the Y sweep
+finishes. The command (defined in
+[`klipper/extras/shaper_max_accel_apply.py`](../../klipper/extras/shaper_max_accel_apply.py)):
+
+1. Picks the newest `/tmp/calibration_data_x_*.csv` and `_y_*.csv`.
+2. Re-fits both via Klipper's own `extras/shaper_calibrate.py` (same
+   code path as `SHAPER_CALIBRATE`, identical numbers).
+3. Reads each axis's recommended max_accel for the best-fit shaper.
+4. Takes `min(x, y)` — the global limit must satisfy both axes.
+5. Applies it at runtime via `SET_VELOCITY_LIMIT ACCEL=<min>` (effective
+   immediately, no restart needed).
+6. Rewrites the `max_accel:` line in `[printer]` of the LIVE
+   `/usr/data/printer_data/config/printer.cfg` (atomic write, autosave
+   block at the bottom untouched).
+
+You'll see something like this in Fluidd's console:
+
+```
+// Shaper limits: X mzv@50.8Hz max_accel<=7600, Y mzv@40.0Hz max_accel<=4700 -> applying 4700
+// Wrote max_accel=4700 into [printer] of /usr/data/printer_data/config/printer.cfg
+// Reminder: copy this value into klipper/config/printer.cfg [printer] max_accel and commit, so a fresh sync reproduces the calibrated state.
+```
+
+The reminder is real: `sync.sh` is unidirectional (repo → printer), so
+if you want a fresh deploy to reproduce the calibrated state, copy the
+new max_accel into the repo's `klipper/config/printer.cfg` and commit.
+
+Manual invocation (without re-running a full sweep) is also fine:
+
+```
+APPLY_SHAPER_MAX_ACCEL
+```
+
+It just reads the newest CSVs in `/tmp/` — note `/tmp/` is tmpfs and
+gets wiped on every host reboot, so a fresh `MEASURE_AXIS X+Y` is
+needed after any reboot before `APPLY_SHAPER_MAX_ACCEL` can find data.
+
+Activation lives in [`klipper/config/input_shaper.cfg`](../../klipper/config/input_shaper.cfg)
+as `[shaper_max_accel_apply]`; rollback is to comment that section out.
+
 ## Re-sync to the repo (optional)
 
 The autosave block is on the live printer only. To make a fresh
