@@ -70,7 +70,7 @@ for required in accel_chip_proxy.py adxl345_creality.py gcode_shell_command.py s
 done
 info "All four .py extras present in $EXTRAS_DIR/"
 
-for required in gen_belts_png.sh gen_shaper_for_guppy.sh _shaper_with_figsize.py graph_belts.py; do
+for required in gen_belts_for_guppy.sh gen_shaper_for_guppy.sh _shaper_with_figsize.py graph_belts.py; do
     [ -f "/tmp/$required" ] || die "/tmp/$required missing. Staging step skipped?"
 done
 info "All four /tmp/ artifacts present"
@@ -79,20 +79,19 @@ info "All four /tmp/ artifacts present"
 info ""
 info "=== Shell + Python helpers ==="
 mkdir -p "$BIN_DIR"
-cp /tmp/gen_belts_png.sh           "$BIN_DIR/gen_belts_png.sh"
+cp /tmp/gen_belts_for_guppy.sh     "$BIN_DIR/gen_belts_for_guppy.sh"
 cp /tmp/gen_shaper_for_guppy.sh    "$BIN_DIR/gen_shaper_for_guppy.sh"
 cp /tmp/_shaper_with_figsize.py    "$BIN_DIR/_shaper_with_figsize.py"
-chmod 0755 "$BIN_DIR/gen_belts_png.sh" \
+chmod 0755 "$BIN_DIR/gen_belts_for_guppy.sh" \
            "$BIN_DIR/gen_shaper_for_guppy.sh" \
            "$BIN_DIR/_shaper_with_figsize.py"
 info "  installed in $BIN_DIR/:"
-info "    gen_belts_png.sh        (MEASURE_BELTS PNG)"
+info "    gen_belts_for_guppy.sh  (unified belts PNG — Fluidd + GuppyScreen)"
 info "    gen_shaper_for_guppy.sh (unified shaper PNG — Fluidd + GuppyScreen)"
 info "    _shaper_with_figsize.py (matplotlib figsize-forced wrapper)"
 
-# Clean up stale helpers from earlier installs (no longer referenced
-# by any macro/shell-command — guppy_input_shaper is the single entry).
-for stale in gen_shaper_png.sh; do
+# Clean up stale helpers from earlier installs.
+for stale in gen_shaper_png.sh gen_belts_png.sh; do
     if [ -f "$BIN_DIR/$stale" ]; then
         rm -f "$BIN_DIR/$stale"
         info "  removed stale $BIN_DIR/$stale"
