@@ -3,42 +3,36 @@
 #
 # Installed at: /usr/data/e5m-ck/bin/gen_belts_for_guppy.sh
 # Invoked by:   [gcode_shell_command guppy_belts_calibration] (input_shaper.cfg)
-# Companion:    /usr/data/e5m-ck/bin/_shaper_with_figsize.py  (not used here;
-#               graph_belts.py supports -w/-l natively)
 #
 # Two entry points hit this script with identical PARAMS format:
 #
-#   1. GuppyScreen "Belts/Shake" UI button → its binary emits
-#      `GUPPY_BELTS_SHAPER_CALIBRATION PNG_OUT_PATH=... PNG_WIDTH=... PNG_HEIGHT=...`
-#      which our macro forwards as RUN_SHELL_COMMAND PARAMS=...
-#   2. Fluidd MEASURE_BELTS macro → forwards the same RUN_SHELL_COMMAND
-#      with the SAME PARAMS so the two flows are byte-for-byte identical.
+#   1. GuppyScreen "Belts/Shake" UI button → via the
+#      GUPPY_BELTS_SHAPER_CALIBRATION macro (which it sends and our
+#      macro definition handles).
+#   2. Fluidd MEASURE_BELTS macro → calls GUPPY_BELTS_SHAPER_CALIBRATION
+#      so the two flows are identical.
 #
 # Expected PARAMS:
 #   -o <small_png_path> -w 4.8 -l 2.72
-# (the CSV pair is auto-picked from /tmp/raw_data_axis*_e5m_belt_a.csv
-#  and *_e5m_belt_b.csv — written by the macro's TEST_RESONANCES calls)
+# (CSV pair auto-picked from /tmp/raw_data_axis*_e5m_belt_{a,b}.csv)
 #
-# Canonical output paths (both UIs always produce both files):
+# Output paths:
+#   <small_png_path>  (exactly what GuppyScreen requested via -o,
+#                      typically /usr/data/printer_data/config/belts_calibration.png)
+#                      4.8x2.72 in. Real file — GuppyScreen's LVGL image
+#                      loader doesn't follow symlinks reliably.
 #   /usr/data/printer_data/config/printer_calibration_graphs/
-#       belts_guppy_screen.png   (4.8 x 2.72 in, 480x272 px)
-#       belts_full.png            (8 x 4.8 in, desktop preview)
-#
-# GuppyScreen's binary hardcodes the path it polls for its on-screen
-# display (typically /usr/data/printer_data/config/belts_calibration.png —
-# comes in via -o). We SYMLINK from there to the canonical
-# belts_guppy_screen.png. Transparent to GuppyScreen, all real PNG
-# content centralized in printer_calibration_graphs/.
+#       belts_full.png   (8x4.8 in, desktop preview for Fluidd)
 
 set -eu
 
-OUT_REQUESTED=""
+OUT_SMALL=""
 WIDTH="4.8"
 LENGTH="2.72"
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        -o) shift; OUT_REQUESTED="$1"; shift ;;
+        -o) shift; OUT_SMALL="$1"; shift ;;
         -w) shift; WIDTH="$1"; shift ;;
         -l) shift; LENGTH="$1"; shift ;;
         *)  shift ;;
@@ -55,9 +49,8 @@ GRAPH_BELTS="$KLIPPER_DIR/scripts/graph_belts.py"
 # (for the 'extras' package) on PYTHONPATH.
 export PYTHONPATH="$KLIPPER_DIR/klippy/extras:$KLIPPER_DIR/klippy:${PYTHONPATH:-}"
 
-# Pick the newest CSV per belt. NAME suffix (e5m_belt_a / _b) is robust
-# across Klipper master's filename punctuation ('=', ','), which the
-# old '_'-separator pattern wasn't.
+# Pick the newest CSV per belt by NAME suffix — robust across Klipper
+# master's filename punctuation ('=', ',') vs older underscores.
 pick_newest() {
     pattern="$1"
     newest=""
@@ -78,32 +71,26 @@ echo "A-belt CSV: $CSV_A"
 echo "B-belt CSV: $CSV_B"
 
 GRAPHS_DIR="/usr/data/printer_data/config/printer_calibration_graphs"
-SMALL_CANON="$GRAPHS_DIR/belts_guppy_screen.png"
 LARGE_CANON="$GRAPHS_DIR/belts_full.png"
 mkdir -p "$GRAPHS_DIR"
 
-# 1. Small PNG (GuppyScreen on-screen).
+# 1. Small PNG written directly to GuppyScreen's requested path (-o).
 #    -n disables the difference spectrogram (needs scipy, not in
-#    klippy-env). PSD overlay + similarity score on the main panel is
-#    what's actually useful for belt-tension diagnosis.
-/usr/share/klippy-env/bin/python3 "$GRAPH_BELTS" \
-    -o "$SMALL_CANON" \
-    -k "$KLIPPER_DIR" \
-    -w "$WIDTH" -l "$LENGTH" -n \
-    "$CSV_A" "$CSV_B"
-echo "GuppyScreen-sized PNG: $SMALL_CANON (${WIDTH} x ${LENGTH} in)"
-
-# 2. Symlink GuppyScreen-requested path to canonical.
-if [ -n "$OUT_REQUESTED" ] && [ "$OUT_REQUESTED" != "$SMALL_CANON" ]; then
-    rm -f "$OUT_REQUESTED"
-    ln -s "$SMALL_CANON" "$OUT_REQUESTED"
-    echo "Symlinked $OUT_REQUESTED -> $SMALL_CANON"
+#    klippy-env). PSD overlay + similarity score is what's useful.
+if [ -n "$OUT_SMALL" ]; then
+    [ -L "$OUT_SMALL" ] && rm -f "$OUT_SMALL"
+    /usr/share/klippy-env/bin/python3 "$GRAPH_BELTS" \
+        -o "$OUT_SMALL" \
+        -k "$KLIPPER_DIR" \
+        -w "$WIDTH" -l "$LENGTH" -n \
+        "$CSV_A" "$CSV_B"
+    echo "GuppyScreen PNG: $OUT_SMALL (${WIDTH} x ${LENGTH} in)"
 fi
 
-# 3. Large PNG (Fluidd File Manager / desktop preview).
+# 2. Large PNG (Fluidd / desktop preview).
 /usr/share/klippy-env/bin/python3 "$GRAPH_BELTS" \
     -o "$LARGE_CANON" \
     -k "$KLIPPER_DIR" \
     -w 8 -l 4.8 -n \
     "$CSV_A" "$CSV_B"
-echo "Full-sized PNG: $LARGE_CANON (8 x 4.8 in)"
+echo "Full PNG:        $LARGE_CANON (8 x 4.8 in)"

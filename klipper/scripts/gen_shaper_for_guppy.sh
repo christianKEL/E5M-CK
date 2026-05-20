@@ -15,20 +15,19 @@
 # Expected PARAMS:
 #   /tmp/resonances_<axis>_<axis>.csv -o <small_png_path> -w 4.8 -l 2.72
 #
-# Canonical output paths (both UIs always produce both files):
+# Output paths:
+#   <small_png_path>  (always exactly what GuppyScreen requested via -o,
+#                      typically /usr/data/printer_data/config/resonances_<axis>.png)
+#                      4.8x2.72 in, ~480x272 px. Real file — GuppyScreen's
+#                      LVGL image loader doesn't follow symlinks reliably,
+#                      so the small PNG must live at the requested path
+#                      directly. No copy elsewhere.
 #   /usr/data/printer_data/config/printer_calibration_graphs/
-#       resonance_<axis>_guppy_screen.png   (4.8x2.72 in, 480x272 px)
-#       resonance_<axis>_full.png           (8x4.8 in, desktop preview)
-#
-# GuppyScreen's binary hardcodes the path it polls for its on-screen
-# display (/usr/data/printer_data/config/resonances_<axis>.png — comes
-# in via -o). We honor that by SYMLINKING from there to the canonical
-# guppy_screen PNG. The symlink is transparent to GuppyScreen and keeps
-# all real PNG content in printer_calibration_graphs/.
+#       resonance_<axis>_full.png   (8x4.8 in, desktop preview for Fluidd)
 #
 # Both PNGs use Klipper master's scripts/calibrate_shaper.py via the
 # matplotlib-figsize-forced _shaper_with_figsize.py wrapper. We do NOT
-# pass --shapers=mzv here — the PNG should show the full candidate set
+# pass --shapers=mzv here — the PNG shows the full candidate set
 # (zv, mzv, ei, 2hump_ei, 3hump_ei) for visual comparison, just like
 # Klipper's stock workflow. The "Recommended shaper" line printed by
 # the script is informational only.
@@ -48,12 +47,12 @@ if [ $# -lt 1 ]; then
 fi
 
 CSV="$1"; shift
-OUT_REQUESTED=""
+OUT_SMALL=""
 SMALL_W="4.8"
 SMALL_L="2.72"
 while [ $# -gt 0 ]; do
     case "$1" in
-        -o) shift; OUT_REQUESTED="$1"; shift ;;
+        -o) shift; OUT_SMALL="$1"; shift ;;
         -w) shift; SMALL_W="$1"; shift ;;
         -l) shift; SMALL_L="$1"; shift ;;
         *)  shift ;;
@@ -67,7 +66,6 @@ AXIS=$(echo "$CSV" | sed -n 's|.*resonances_\([xy]\)_.*|\1|p')
 WRAPPER="/usr/data/e5m-ck/bin/_shaper_with_figsize.py"
 KLIPPER_DIR="/usr/data/e5m-ck/klipper"
 GRAPHS_DIR="/usr/data/printer_data/config/printer_calibration_graphs"
-SMALL_CANON="$GRAPHS_DIR/resonance_${AXIS}_guppy_screen.png"
 LARGE_CANON="$GRAPHS_DIR/resonance_${AXIS}_full.png"
 
 export PYTHONPATH="$KLIPPER_DIR/klippy:${PYTHONPATH:-}"
@@ -75,29 +73,24 @@ mkdir -p "$GRAPHS_DIR"
 
 echo "guppy_input_shaper: axis=$AXIS csv=$CSV"
 
-# 1. Small PNG (GuppyScreen size). Always written to the canonical
-#    printer_calibration_graphs/ path. No --shapers restriction — the
-#    PNG shows all 5 candidate shapers so the user can compare them.
-/usr/share/klippy-env/bin/python3 "$WRAPPER" \
-    "$SMALL_W" "$SMALL_L" "$CSV" -o "$SMALL_CANON"
-echo "GuppyScreen-sized PNG: $SMALL_CANON (${SMALL_W} x ${SMALL_L} in)"
-
-# 2. If GuppyScreen asked us to write to a specific path (via -o), make
-#    that path a symlink to the canonical. GuppyScreen polls the path
-#    it requested; the symlink is transparent. Replaces any old regular
-#    file or stale symlink there.
-if [ -n "$OUT_REQUESTED" ] && [ "$OUT_REQUESTED" != "$SMALL_CANON" ]; then
-    rm -f "$OUT_REQUESTED"
-    ln -s "$SMALL_CANON" "$OUT_REQUESTED"
-    echo "Symlinked $OUT_REQUESTED -> $SMALL_CANON"
+# 1. Small PNG written directly to the requested path (where GuppyScreen
+#    polls for its on-screen display). Replaces any stale file or symlink.
+if [ -n "$OUT_SMALL" ]; then
+    # Remove any previous symlink at this path (left over from earlier
+    # versions of this script) so the new write is a real file.
+    [ -L "$OUT_SMALL" ] && rm -f "$OUT_SMALL"
+    /usr/share/klippy-env/bin/python3 "$WRAPPER" \
+        "$SMALL_W" "$SMALL_L" "$CSV" -o "$OUT_SMALL"
+    echo "GuppyScreen PNG: $OUT_SMALL (${SMALL_W} x ${SMALL_L} in)"
 fi
 
-# 3. Large PNG (desktop / Fluidd preview). 8x4.8 in. All shapers shown.
+# 2. Large PNG in printer_calibration_graphs/ — for Fluidd preview /
+#    desktop viewing. 8x4.8 in. All shapers shown (no --shapers flag).
 /usr/share/klippy-env/bin/python3 "$WRAPPER" \
     8 4.8 "$CSV" -o "$LARGE_CANON"
-echo "Full-sized PNG: $LARGE_CANON (8 x 4.8 in)"
+echo "Full PNG:        $LARGE_CANON (8 x 4.8 in)"
 
-# 4. After Y: enqueue APPLY_SHAPER_MAX_ACCEL via Moonraker.
+# 3. After Y: enqueue APPLY_SHAPER_MAX_ACCEL via Moonraker.
 #
 # Detached curl avoids deadlock: Klippy is still inside this
 # RUN_SHELL_COMMAND and cannot process queued gcode until we return.
