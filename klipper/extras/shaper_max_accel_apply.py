@@ -128,12 +128,13 @@ class ShaperMaxAccelApply:
             # step gives ~1-2 Hz drift in the fitted MZV frequency.
             if ',shapers:' not in header:
                 cal.normalize_to_frequencies()
-        # shapers=['mzv'] forces the recommendation to MZV always: the
-        # candidate set is reduced to a single shaper, so it is by
-        # definition the best. Matches the --shapers=mzv flag we pass to
-        # calibrate_shaper.py in the PNG-generation path (gen_shaper_for_guppy.sh).
-        # The user's calibrated machine is mzv-optimal across the resonance
-        # range we sweep; restricting upfront keeps both flows identical.
+        # shapers=['mzv'] forces the recommendation to MZV always for
+        # the SAVE_CONFIG / max_accel path. The PNG-generation path
+        # (gen_shaper_for_guppy.sh) deliberately does NOT restrict the
+        # shaper list — its plots show all 5 candidates so the user can
+        # visually compare them. The restriction here only affects what
+        # we stage into the [input_shaper] autosave block and what we
+        # use to compute max_accel.
         best, _all = helper.find_best_shaper(
             cal, shapers=['mzv'], scv=self._scv())
         return best

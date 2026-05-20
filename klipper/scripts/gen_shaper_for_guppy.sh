@@ -27,13 +27,18 @@
 # all real PNG content in printer_calibration_graphs/.
 #
 # Both PNGs use Klipper master's scripts/calibrate_shaper.py via the
-# matplotlib-figsize-forced _shaper_with_figsize.py wrapper, with
-# `--shapers=mzv` so the recommended shaper is always MZV.
+# matplotlib-figsize-forced _shaper_with_figsize.py wrapper. We do NOT
+# pass --shapers=mzv here — the PNG should show the full candidate set
+# (zv, mzv, ei, 2hump_ei, 3hump_ei) for visual comparison, just like
+# Klipper's stock workflow. The "Recommended shaper" line printed by
+# the script is informational only.
 #
 # After the Y axis call, we enqueue APPLY_SHAPER_MAX_ACCEL via a
-# detached curl to Moonraker — that command refits MZV on both axes'
-# latest CSVs, writes the [input_shaper] autosave entry, and updates
-# [printer] max_accel in printer.cfg.
+# detached curl to Moonraker. That command refits with shapers=['mzv']
+# (forced) on both axes' latest CSVs, writes shaper_type=mzv to the
+# [input_shaper] autosave entry, and updates [printer] max_accel —
+# so SAVE_CONFIG always persists MZV regardless of what the PNG's
+# auto-pick suggested.
 
 set -eu
 
@@ -71,9 +76,10 @@ mkdir -p "$GRAPHS_DIR"
 echo "guppy_input_shaper: axis=$AXIS csv=$CSV"
 
 # 1. Small PNG (GuppyScreen size). Always written to the canonical
-#    printer_calibration_graphs/ path.
+#    printer_calibration_graphs/ path. No --shapers restriction — the
+#    PNG shows all 5 candidate shapers so the user can compare them.
 /usr/share/klippy-env/bin/python3 "$WRAPPER" \
-    "$SMALL_W" "$SMALL_L" "$CSV" -o "$SMALL_CANON" --shapers=mzv
+    "$SMALL_W" "$SMALL_L" "$CSV" -o "$SMALL_CANON"
 echo "GuppyScreen-sized PNG: $SMALL_CANON (${SMALL_W} x ${SMALL_L} in)"
 
 # 2. If GuppyScreen asked us to write to a specific path (via -o), make
@@ -86,9 +92,9 @@ if [ -n "$OUT_REQUESTED" ] && [ "$OUT_REQUESTED" != "$SMALL_CANON" ]; then
     echo "Symlinked $OUT_REQUESTED -> $SMALL_CANON"
 fi
 
-# 3. Large PNG (desktop / Fluidd preview). Default 8x4.8 in.
+# 3. Large PNG (desktop / Fluidd preview). 8x4.8 in. All shapers shown.
 /usr/share/klippy-env/bin/python3 "$WRAPPER" \
-    8 4.8 "$CSV" -o "$LARGE_CANON" --shapers=mzv
+    8 4.8 "$CSV" -o "$LARGE_CANON"
 echo "Full-sized PNG: $LARGE_CANON (8 x 4.8 in)"
 
 # 4. After Y: enqueue APPLY_SHAPER_MAX_ACCEL via Moonraker.
