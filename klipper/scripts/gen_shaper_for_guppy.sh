@@ -3,68 +3,55 @@
 #
 # Installed at: /usr/data/e5m-ck/bin/gen_shaper_for_guppy.sh
 # Invoked by:   [gcode_shell_command guppy_input_shaper] (macros/input_shaper.cfg)
-# Companions:   /usr/data/e5m-ck/bin/_shaper_with_figsize.py
-#               /usr/data/e5m-ck/bin/shaper_json_emitter.py
+# Backend:      /usr/data/e5m-ck/bin/shaper_full.py
 #
 # Two entry points hit this script with identical PARAMS format:
 #
 #   1. GuppyScreen "Input Shaper" UI button — its binary emits
-#      `RUN_SHELL_COMMAND CMD=guppy_input_shaper PARAMS=...` directly.
+#      `RUN_SHELL_COMMAND CMD=guppy_input_shaper PARAMS=...` directly,
+#      with -w/-l computed from screen resolution (Nebula Pad 480x272
+#      → -w 4.8 -l 2.72).
 #   2. Fluidd MEASURE_AXIS macro — emits the SAME RUN_SHELL_COMMAND
 #      with the SAME PARAMS so the two flows are byte-for-byte identical.
 #
 # Expected PARAMS:
 #   /tmp/resonances_<axis>_<axis>.csv -o <small_png_path> -w 4.8 -l 2.72
 #
-# Output paths (always the same regardless of caller):
-#   /tmp/resonances_<axis>.png                                        (volatile,
-#                                                                     small PNG
-#                                                                     consumed by
-#                                                                     GuppyScreen on
-#                                                                     the Nebula Pad)
+# Output paths:
+#   <small_png_path>  (always exactly what GuppyScreen requested via -o,
+#                      typically /usr/data/printer_data/config/resonances_<axis>.png)
+#                      Real file. GuppyScreen rebuilds this path itself
+#                      from <config_root>/resonances_<axis>.png and reads
+#                      the PNG via LVGL's `A:` (stdio) mount, so the file
+#                      MUST exist at exactly that path.
 #   /usr/data/printer_data/config/printer_calibration_graphs/
-#       resonance_<axis>_full.png                                     (persistent,
-#                                                                     full size for
-#                                                                     Fluidd's File
-#                                                                     Manager)
+#       resonance_<axis>_full.png   (8x4.8 in, desktop preview for Fluidd)
 #
-# GuppyScreen passes its requested small-PNG path via -o (typically
-# /usr/data/printer_data/config/resonances_<axis>.png). We ignore that
-# path and route the small PNG to /tmp/ instead — GuppyScreen knows
-# where the PNG landed because we emit a JSON line on stdout with the
-# correct "png" field, which the binary parses to locate the file.
+# Both PNGs come out of a SINGLE python process (shaper_full.py) — one
+# matplotlib import for both renders + the JSON output. This was the
+# fix for OOM kills we saw with the previous 3-script chain on the
+# 200 MB MIPS host (matplotlib eats ~50 MB per import).
 #
-# Both PNGs use Klipper master's scripts/calibrate_shaper.py via the
-# matplotlib-figsize-forced _shaper_with_figsize.py wrapper. No
-# --shapers restriction here — the PNG shows the full candidate set
-# (zv, mzv, ei, 2hump_ei, 3hump_ei) for visual comparison, just like
-# Klipper's stock workflow. The "Recommended shaper" line printed by
-# the script is informational only.
-#
-# After both PNGs are written, shaper_json_emitter.py prints the JSON
-# line GuppyScreen expects, with "best": "mzv" hardcoded (project policy)
-# and "png" pointing to the /tmp/ small PNG.
-#
-# After the Y axis call, we enqueue APPLY_SHAPER_MAX_ACCEL via a
+# After the Y axis run, we enqueue APPLY_SHAPER_MAX_ACCEL via a
 # detached curl to Moonraker. That command refits with shapers=['mzv']
 # (forced) on both axes' latest CSVs, writes shaper_type=mzv to the
 # [input_shaper] autosave entry (in memory), and rewrites [printer]
-# max_accel in printer.cfg in place — so the next SAVE_INPUT_SHAPER
-# (or user-triggered SAVE_CONFIG) persists MZV.
+# max_accel in printer.cfg in place.
 
 set -eu
 
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <csv> [-o <ignored>] [-w <inch>] [-l <inch>]" >&2
+    echo "Usage: $0 <csv> [-o <png>] [-w <inch>] [-l <inch>]" >&2
     exit 1
 fi
 
 CSV="$1"; shift
+OUT_SMALL=""
 SMALL_W="4.8"
 SMALL_L="2.72"
 while [ $# -gt 0 ]; do
     case "$1" in
-        -o) shift; shift ;;             # GuppyScreen-requested path — ignored
+        -o) shift; OUT_SMALL="$1"; shift ;;
         -w) shift; SMALL_W="$1"; shift ;;
         -l) shift; SMALL_L="$1"; shift ;;
         *)  shift ;;
@@ -75,35 +62,31 @@ done
 AXIS=$(echo "$CSV" | sed -n 's|.*resonances_\([xy]\)_.*|\1|p')
 [ -z "$AXIS" ] && AXIS="unknown"
 
-BIN_DIR="/usr/data/e5m-ck/bin"
-KLIPPER_DIR="/usr/data/e5m-ck/klipper"
-WRAPPER="$BIN_DIR/_shaper_with_figsize.py"
-JSON_EMITTER="$BIN_DIR/shaper_json_emitter.py"
-PY="/usr/share/klippy-env/bin/python3"
+# Small PNG goes at the path GuppyScreen requested via -o; default
+# matches the canonical path GuppyScreen reconstructs internally if
+# -o wasn't passed (e.g. Fluidd MEASURE_AXIS calling with the same args).
+SMALL_PNG="${OUT_SMALL:-/usr/data/printer_data/config/resonances_${AXIS}.png}"
 
 GRAPHS_DIR="/usr/data/printer_data/config/printer_calibration_graphs"
+FULL_PNG="$GRAPHS_DIR/resonance_${AXIS}_full.png"
 mkdir -p "$GRAPHS_DIR"
 
-SMALL_PNG="/tmp/resonances_${AXIS}.png"
-LARGE_PNG="$GRAPHS_DIR/resonance_${AXIS}_full.png"
-
-export PYTHONPATH="$KLIPPER_DIR/klippy:${PYTHONPATH:-}"
+# Clean up any leftover symlink at the small path from earlier installs.
+[ -L "$SMALL_PNG" ] && rm -f "$SMALL_PNG"
 
 echo "guppy_input_shaper: axis=$AXIS csv=$CSV"
 
-# 1. Small PNG → /tmp/, sized for the Nebula Pad screen.
-"$PY" "$WRAPPER" "$SMALL_W" "$SMALL_L" "$CSV" -o "$SMALL_PNG"
+# Single Python process: fit + small PNG + full PNG + JSON.
+/usr/share/klippy-env/bin/python3 \
+    /usr/data/e5m-ck/bin/shaper_full.py \
+    "$CSV" \
+    -o "$SMALL_PNG" -w "$SMALL_W" -l "$SMALL_L" \
+    --full "$FULL_PNG"
+
 echo "GuppyScreen PNG: $SMALL_PNG (${SMALL_W} x ${SMALL_L} in)"
+echo "Full PNG:        $FULL_PNG (8 x 4.8 in)"
 
-# 2. Full-size PNG → printer_calibration_graphs/, for Fluidd preview.
-"$PY" "$WRAPPER" 8 4.8 "$CSV" -o "$LARGE_PNG"
-echo "Full PNG:        $LARGE_PNG (8 x 4.8 in)"
-
-# 3. Emit the JSON line GuppyScreen parses. "png" = small PNG path so
-#    GuppyScreen loads it for on-screen display. "best" = "mzv" (policy).
-"$PY" "$JSON_EMITTER" "$CSV" --png "$SMALL_PNG"
-
-# 4. After Y: enqueue APPLY_SHAPER_MAX_ACCEL via Moonraker.
+# After Y: enqueue APPLY_SHAPER_MAX_ACCEL via Moonraker.
 #
 # Detached curl avoids deadlock: Klippy is still inside this
 # RUN_SHELL_COMMAND and cannot process queued gcode until we return.
