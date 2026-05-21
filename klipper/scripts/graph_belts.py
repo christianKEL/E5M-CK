@@ -304,8 +304,10 @@ def plot_compare_frequency(ax, lognames, signal1, signal2, max_freq):
 
     # E5M-CK convention: remap A/B (CoreXY excitation axes) to X/Y
     # (physical belts on the printer). The MEASURE_BELTS macro pins
-    # NAME=e5m_belt_a to AXIS=1,-1 (stepper_x only ⇒ X belt) and
-    # NAME=e5m_belt_b to AXIS=1,1 (stepper_y only ⇒ Y belt).
+    # NAME=e5m_belt_a to AXIS=1,1 (ΔA=2, ΔB=0 ⇒ stepper_x only ⇒
+    # the X belt, confirmed by FORCE_MOVE STEPPER=stepper_x test)
+    # and NAME=e5m_belt_b to AXIS=1,-1 (ΔA=0, ΔB=2 ⇒ stepper_y only
+    # ⇒ Y belt).
     if signal1_belt == 'A' and signal2_belt == 'B':
         signal1_belt = 'X'
         signal2_belt = 'Y'
