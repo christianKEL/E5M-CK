@@ -70,13 +70,22 @@ def post_gcode(script):
 
 
 def cleanup(reason):
-    # Best-effort: ignore individual failures so all three lines get a shot.
-    for script in (
+    # Best-effort: ignore individual failures so all subsequent lines
+    # still get a shot.
+    #
+    # TEMPERATURE_PROBE_ENABLE makes the just-saved drift table take
+    # effect immediately (Klipper holds compensation_enabled as a
+    # runtime flag — it does NOT auto-load from config). The call will
+    # raise gcmd.error if the calibration was aborted or never produced
+    # data; that's fine, post_gcode swallows it.
+    scripts = (
         "TURN_OFF_HEATERS",
         "SET_PIN PIN=%s VALUE=0" % LIGHT_PIN,
+        "TEMPERATURE_PROBE_ENABLE PROBE=btt_eddy ENABLE=1",
         "RESPOND TYPE=command MSG=\"EDDY_DRIFT_CALIBRATE: %s. "
         "Run SAVE_CONFIG to persist the drift table.\"" % reason,
-    ):
+    )
+    for script in scripts:
         try:
             post_gcode(script)
         except Exception as e:
