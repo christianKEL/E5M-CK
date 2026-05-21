@@ -37,7 +37,8 @@ import urllib.parse
 import urllib.request
 
 POLL_INTERVAL = 10        # seconds between polls
-STALL_TIMEOUT = 600       # 10 min without coil temp rise -> COMPLETE
+STALL_TIMEOUT = 600       # 10 min without a meaningful coil rise -> COMPLETE
+MIN_RISE = 0.3            # °C — smaller deltas are noise, not a real rise
 HARD_TIMEOUT = 5400       # 90 min absolute cap
 MOONRAKER = "http://localhost:7125"
 PROBE = "temperature_probe btt_eddy"
@@ -126,7 +127,12 @@ def main():
             # will catch us.
             continue
 
-        if temp > last_max:
+        # Only count it as a "real rise" if temp climbs by at least
+        # MIN_RISE above the last reference max. Thermistor noise at a
+        # true plateau still ticks the reading up by 0.01-0.02 °C per
+        # poll — without this threshold, those micro-deltas keep
+        # resetting the stall timer and we never finalize.
+        if temp >= last_max + MIN_RISE:
             last_max = temp
             last_max_time = now
 
