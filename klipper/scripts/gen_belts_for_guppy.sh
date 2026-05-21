@@ -2,7 +2,8 @@
 # gen_belts_for_guppy.sh — unified belts-comparison PNG generator.
 #
 # Installed at: /usr/data/e5m-ck/bin/gen_belts_for_guppy.sh
-# Invoked by:   [gcode_shell_command guppy_belts_calibration] (input_shaper.cfg)
+# Invoked by:   [gcode_shell_command guppy_belts_calibration]
+# Backend:      /usr/data/e5m-ck/bin/belts_full.py
 #
 # Two entry points hit this script with identical PARAMS format:
 #
@@ -13,23 +14,24 @@
 #      so the two flows are identical.
 #
 # Expected PARAMS:
-#   -o <ignored> -w 4.8 -l 2.72
+#   -o <small_png_path> -w 4.8 -l 2.72
 # (CSV pair auto-picked from /tmp/raw_data_axis*_e5m_belt_{a,b}.csv)
 #
-# Output paths (always the same regardless of caller):
-#   /tmp/belts_calibration.png        (volatile, small for GuppyScreen)
+# Output paths:
+#   <small_png_path>  (always exactly what GuppyScreen requested via -o,
+#                      typically /usr/data/printer_data/config/belts_calibration.png).
+#                      Real file. GuppyScreen rebuilds this path itself
+#                      and reads it via LVGL's `A:` (stdio) mount — no
+#                      JSON parsing on the belts panel, the trigger
+#                      string is just "// Command {guppy_belts_calibration} finished"
+#                      and the PNG path is fixed in the binary.
 #   /usr/data/printer_data/config/printer_calibration_graphs/
-#       belts_full.png                (persistent, full size for Fluidd)
+#       belts_full.png   (8x4.8 in, desktop preview for Fluidd)
 #
-# GuppyScreen's binary hardcodes /usr/data/printer_data/config/
-# belts_calibration.png as its display path (no JSON parsing here —
-# graph_belts.py doesn't emit one). So for belts we cannot route the
-# small PNG into /tmp/ without GuppyScreen losing track of it; we keep
-# the small PNG at GuppyScreen's expected path. The full PNG goes to
-# printer_calibration_graphs/ as for shapers.
-#
-# (If GuppyScreen ever grows JSON parsing for belts, we'll mirror the
-# shaper approach and route the small PNG to /tmp/ too.)
+# Both PNGs come out of a SINGLE python process (belts_full.py) — one
+# matplotlib + numpy import for both renders. Belt CSVs are ~21 MB
+# raw accelerometer data; loading them twice was the worst-case OOM
+# trigger on the 256 MB Nebula Pad.
 
 set -eu
 
@@ -47,14 +49,6 @@ while [ $# -gt 0 ]; do
 done
 
 KLIPPER_DIR="/usr/data/e5m-ck/klipper"
-GRAPH_BELTS="$KLIPPER_DIR/scripts/graph_belts.py"
-[ -f "$GRAPH_BELTS" ] \
-    || { echo "graph_belts.py missing at $GRAPH_BELTS" >&2; exit 1; }
-
-# graph_belts.py does `import shaper_calibrate` at module top, before
-# parsing -k; need both klippy/extras (for the module itself) and klippy/
-# (for the 'extras' package) on PYTHONPATH.
-export PYTHONPATH="$KLIPPER_DIR/klippy/extras:$KLIPPER_DIR/klippy:${PYTHONPATH:-}"
 
 # Pick the newest CSV per belt by NAME suffix — robust across Klipper
 # master's filename punctuation ('=', ',') vs older underscores.
@@ -78,25 +72,20 @@ echo "A-belt CSV: $CSV_A"
 echo "B-belt CSV: $CSV_B"
 
 GRAPHS_DIR="/usr/data/printer_data/config/printer_calibration_graphs"
-LARGE_CANON="$GRAPHS_DIR/belts_full.png"
+FULL_PNG="$GRAPHS_DIR/belts_full.png"
 mkdir -p "$GRAPHS_DIR"
 
-# 1. Small PNG written to the path GuppyScreen requested via -o
-#    (or a sensible default). Real file, replacing any leftover symlink.
-#    -n disables the difference spectrogram (needs scipy, not in klippy-env).
-SMALL_OUT="${OUT_SMALL:-/usr/data/printer_data/config/belts_calibration.png}"
-[ -L "$SMALL_OUT" ] && rm -f "$SMALL_OUT"
-/usr/share/klippy-env/bin/python3 "$GRAPH_BELTS" \
-    -o "$SMALL_OUT" \
-    -k "$KLIPPER_DIR" \
-    -w "$WIDTH" -l "$LENGTH" -n \
-    "$CSV_A" "$CSV_B"
-echo "GuppyScreen PNG: $SMALL_OUT (${WIDTH} x ${LENGTH} in)"
+SMALL_PNG="${OUT_SMALL:-/usr/data/printer_data/config/belts_calibration.png}"
+# Strip any leftover symlink from older installs so the new write is a real file.
+[ -L "$SMALL_PNG" ] && rm -f "$SMALL_PNG"
 
-# 2. Large PNG → printer_calibration_graphs/, for Fluidd preview.
-/usr/share/klippy-env/bin/python3 "$GRAPH_BELTS" \
-    -o "$LARGE_CANON" \
-    -k "$KLIPPER_DIR" \
-    -w 8 -l 4.8 -n \
-    "$CSV_A" "$CSV_B"
-echo "Full PNG:        $LARGE_CANON (8 x 4.8 in)"
+# Single Python process: load CSVs once, render both PNG sizes.
+/usr/share/klippy-env/bin/python3 \
+    /usr/data/e5m-ck/bin/belts_full.py \
+    "$CSV_A" "$CSV_B" \
+    --small "$SMALL_PNG" -w "$WIDTH" -l "$LENGTH" \
+    --full "$FULL_PNG" \
+    --klipperdir "$KLIPPER_DIR"
+
+echo "GuppyScreen PNG: $SMALL_PNG (${WIDTH} x ${LENGTH} in)"
+echo "Full PNG:        $FULL_PNG (8 x 4.8 in)"
