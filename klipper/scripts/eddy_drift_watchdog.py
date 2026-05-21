@@ -73,17 +73,25 @@ def cleanup(reason):
     # Best-effort: ignore individual failures so all subsequent lines
     # still get a shot.
     #
-    # TEMPERATURE_PROBE_ENABLE makes the just-saved drift table take
-    # effect immediately (Klipper holds compensation_enabled as a
-    # runtime flag — it does NOT auto-load from config). The call will
-    # raise gcmd.error if the calibration was aborted or never produced
-    # data; that's fine, post_gcode swallows it.
+    # Order matters: SAVE_CONFIG restarts Klipper, which kills any
+    # gcode still in the queue behind it. Everything that needs to
+    # run BEFORE the restart goes first.
+    #
+    # TEMPERATURE_PROBE_ENABLE is defensive: it makes the drift table
+    # take effect in the current session in case SAVE_CONFIG is a
+    # no-op (e.g. calibration was ABORTed and produced no pending
+    # config). After the restart from SAVE_CONFIG, Klipper auto-enables
+    # compensation from config (verified — temperature_probe.py:517).
+    #
+    # SAVE_CONFIG is last. The RESPOND just before it is what the user
+    # sees in the console; after the restart, output stops.
     scripts = (
         "TURN_OFF_HEATERS",
         "SET_PIN PIN=%s VALUE=0" % LIGHT_PIN,
         "TEMPERATURE_PROBE_ENABLE PROBE=btt_eddy ENABLE=1",
         "RESPOND TYPE=command MSG=\"EDDY_DRIFT_CALIBRATE: %s. "
-        "Run SAVE_CONFIG to persist the drift table.\"" % reason,
+        "Persisting drift table — Klipper will restart in ~3 s.\"" % reason,
+        "SAVE_CONFIG",
     )
     for script in scripts:
         try:
