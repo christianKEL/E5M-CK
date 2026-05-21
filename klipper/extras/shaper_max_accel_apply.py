@@ -234,6 +234,21 @@ class ShaperMaxAccelApply:
                 'WARN: SET_VELOCITY_LIMIT applied but could not rewrite '
                 'printer.cfg: %s' % str(e))
 
+        # Best-effort cleanup of the transient GuppyScreen PNGs at
+        # config/resonances_<axis>.png. By the time APPLY runs the user
+        # has already seen them on the Nebula Pad — LVGL holds the
+        # decoded image in its in-memory cache, so deleting the on-disk
+        # file does not yank the current display. The permanent record
+        # lives in config/printer_calibration_graphs/resonance_<axis>_full.png.
+        for axis in ('x', 'y'):
+            png = ('/usr/data/printer_data/config/'
+                   'resonances_%s.png' % axis)
+            try:
+                os.remove(png)
+                gcmd.respond_info('Removed transient %s' % png)
+            except OSError:
+                pass  # not present (or symlink already cleaned up) — fine
+
 
 def load_config(config):
     return ShaperMaxAccelApply(config)
