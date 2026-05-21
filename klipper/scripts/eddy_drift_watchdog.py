@@ -130,12 +130,22 @@ def main():
             last_max = temp
             last_max_time = now
 
+        # Heartbeat: one line per poll so `tail -F` shows the watchdog
+        # is alive. Includes the stall timer so the operator can see
+        # how close we are to the COMPLETE trigger.
+        stall_age = int(now - last_max_time)
+        sys.stdout.write(
+            "[%s] coil=%.2f max=%.2f stall_age=%ds/%ds\n"
+            % (time.strftime("%H:%M:%S"), temp, last_max,
+               stall_age, STALL_TIMEOUT))
+        sys.stdout.flush()
+
         # Coil stuck: post COMPLETE once. The next poll iteration will see
         # in_calibration=False and run cleanup() then return.
         if (not stall_triggered and
-                now - last_max_time >= STALL_TIMEOUT):
+                stall_age >= STALL_TIMEOUT):
             sys.stdout.write(
-                "watchdog: coil plateaued at %.1f C for %ds — "
+                "watchdog: coil plateaued at %.2f C for %ds — "
                 "posting TEMPERATURE_PROBE_COMPLETE\n"
                 % (last_max, STALL_TIMEOUT))
             sys.stdout.flush()
