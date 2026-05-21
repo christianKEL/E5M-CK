@@ -89,3 +89,16 @@ SMALL_PNG="${OUT_SMALL:-/usr/data/printer_data/config/belts_calibration.png}"
 
 echo "GuppyScreen PNG: $SMALL_PNG (${WIDTH} x ${LENGTH} in)"
 echo "Full PNG:        $FULL_PNG (8 x 4.8 in)"
+
+# Auto-delete the transient GuppyScreen PNG 30 s after we exit.
+# Sequencing:
+#   1. We exit. Klipper emits "// Command {guppy_belts_calibration} finished".
+#   2. GuppyScreen's belts_calibration_panel.cpp handler fires on that
+#      string and calls lv_img_set_src(graph, "A:<small_png>"), which
+#      LVGL resolves to fopen() of the file — at this point the PNG
+#      content is read into the decode cache.
+#   3. 30 s later this detached subshell unlinks the on-disk file.
+#      LVGL still holds the decoded bitmap in its 5-entry image cache
+#      so the on-screen display is unaffected.
+# The full PNG in printer_calibration_graphs/ persists for Fluidd.
+( sleep 30; rm -f "$SMALL_PNG" ) </dev/null >/dev/null 2>&1 &

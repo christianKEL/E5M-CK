@@ -296,22 +296,28 @@ def mhi_lut(mhi):
 ######################################################################
 
 def plot_compare_frequency(ax, lognames, signal1, signal2, max_freq):
-    # Get the belt name for the legend to avoid putting the full file name
-    signal1_belt = (lognames[0].split('/')[-1]).split('_')[-1][0]
-    signal2_belt = (lognames[1].split('/')[-1]).split('_')[-1][0]
+    # Extract the belt letter from filename suffix (..._e5m_belt_a.csv ⇒ 'A').
+    # .upper() because Klipper writes lowercase suffix names, but the legacy
+    # comparisons below were case-sensitive on uppercase.
+    signal1_belt = (lognames[0].split('/')[-1]).split('_')[-1][0].upper()
+    signal2_belt = (lognames[1].split('/')[-1]).split('_')[-1][0].upper()
 
+    # E5M-CK convention: remap A/B (CoreXY excitation axes) to X/Y
+    # (physical belts on the printer). The MEASURE_BELTS macro pins
+    # NAME=e5m_belt_a to AXIS=1,-1 (stepper_x only ⇒ X belt) and
+    # NAME=e5m_belt_b to AXIS=1,1 (stepper_y only ⇒ Y belt).
     if signal1_belt == 'A' and signal2_belt == 'B':
-        signal1_belt += " (axis 1,-1)"
-        signal2_belt += " (axis 1, 1)"
+        signal1_belt = 'X'
+        signal2_belt = 'Y'
     elif signal1_belt == 'B' and signal2_belt == 'A':
-        signal1_belt += " (axis 1, 1)"
-        signal2_belt += " (axis 1,-1)"
+        signal1_belt = 'Y'
+        signal2_belt = 'X'
     else:
         print("Warning: belts doesn't seem to have the correct name A and B (extracted from the filename.csv)")
 
     # Plot the two belts PSD signals
-    ax.plot(signal1.freqs, signal1.psd, label="Belt " + signal1_belt, color=KLIPPAIN_COLORS['purple'])
-    ax.plot(signal2.freqs, signal2.psd, label="Belt " + signal2_belt, color=KLIPPAIN_COLORS['orange'])
+    ax.plot(signal1.freqs, signal1.psd, label=signal1_belt + " belt", color=KLIPPAIN_COLORS['purple'])
+    ax.plot(signal2.freqs, signal2.psd, label=signal2_belt + " belt", color=KLIPPAIN_COLORS['orange'])
 
     # Trace the "relax region" (also used as a threshold to filter and detect the peaks)
     psd_lowest_max = min(signal1.psd.max(), signal2.psd.max())
