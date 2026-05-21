@@ -152,9 +152,16 @@ class ShaperMaxAccelApply:
         section_start = m.start(1)
         section_end = m.end(1)
         section_body = m.group(1)
+        # Replace the max_accel value AND any trailing # comment on the
+        # same line, then append our own marker comment. The marker
+        # signals to humans (and to future-us) that this number is
+        # auto-managed by APPLY_SHAPER_MAX_ACCEL and will be overwritten
+        # by the next calibration.
+        marker = '  # set automatically by APPLY_SHAPER_MAX_ACCEL'
         new_body, n = re.subn(
-            r'(^|\n)(max_accel\s*:\s*)\d+',
-            lambda mo: '%s%s%d' % (mo.group(1), mo.group(2), new_val),
+            r'(^|\n)(max_accel\s*:\s*)\d+[^\n]*',
+            lambda mo: '%s%s%d%s' % (mo.group(1), mo.group(2),
+                                     new_val, marker),
             section_body, count=1
         )
         if n != 1:
