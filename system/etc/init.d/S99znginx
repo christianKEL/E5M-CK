@@ -35,6 +35,12 @@ start() {
         exit 1
     fi
 
+    # Create nginx tmpfile dirs on the 6 GB eMMC partition before start
+    # (nginx.conf points client_body_temp_path / proxy_temp_path here).
+    # Without these, large uploads/downloads fail with pwrite() ENOSPC
+    # because the default /opt/var/lib/nginx lives on the small overlay.
+    mkdir -p /usr/data/nginx_tmp/body /usr/data/nginx_tmp/proxy
+
     echo "Starting nginx with $NGINX_CONF ..."
     "$NGINX" -c "$NGINX_CONF" -t 2>&1 || {
         echo "ERROR: nginx config test failed." >&2
