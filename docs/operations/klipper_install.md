@@ -35,56 +35,77 @@ Phase 3 replaces the stock Creality klippy Python process with **upstream Klippe
 
 ```bash
 # From your local machine in the E5M-CK repo:
-
-# (a) Pre-stage the precompiled c_helper.so on the printer.
-#     This avoids klippy trying to compile it on first run (we don't ship
-#     gcc on the printer — costs ~100 MB on the small overlay partition).
-scp klipper/binaries/mipsel-3.4/c_helper.so root@192.168.1.94:/tmp/
-
-# (b) Run the installer.
 cat installs/install_klipper.sh | ssh root@192.168.1.94 'sh -s'
 ```
 
 The installer:
 - Backs up the stock `S55klipper_service` to `/usr/data/backup/klipper-stock/`
 - Backs up the stock `printer_data/config/` to `config.stock.tar.gz`
-- Clones Klipper upstream at the pinned tag (default `v0.13.0`) to `/usr/data/e5m-ck/klipper`
-- Creates the venv at `/usr/data/venvs/klippy/` and installs `klippy-requirements.txt`
-- Copies `/tmp/c_helper.so` into `klippy/chelper/` and bumps its mtime so klippy doesn't try to recompile
-- Verifies klippy can `import chelper; chelper.get_ffi()` — proves the binary is ABI-compatible with this Klipper tag
+- Reuses the stock Creality venv at `/usr/share/klippy-env/` (ships pre-built greenlet+cffi for Python 3.8 on MIPS32r2)
+- Clones Klipper upstream at the pinned tag (default `master`) to `/usr/data/e5m-ck/klipper`
+- Resolves `c_helper.so` from one of three sources (see below)
+- Verifies klippy can `import chelper; chelper.get_ffi()` — proves the binary is ABI-compatible with the checked-out Klipper SHA
 - Does NOT touch the stock init script or the live `printer.cfg`
 
-Override the pinned tag with `--tag=vX.Y.Z` if needed.
+Override the pinned tag with `--tag=<ref>` (`master`, `v0.13.0`, a SHA…).
 
-### Rebuilding `c_helper.so` for a different Klipper tag
+### `c_helper.so` — where it comes from
 
-The shipped binary at `klipper/binaries/mipsel-3.4/c_helper.so` is compiled against the **pinned tag (default `v0.13.0`)**. If you bump the Klipper tag and the chelper sources changed, you need to rebuild.
+`klippy/chelper/c_helper.so` is a C extension that has to match (a) this printer's CPU ABI — Ingenic XBurst2 mipsel32r2, nan2008, glibc≥2.22 — AND (b) the Klipper Python code's expectations for that SHA. Klipper can auto-rebuild it on first start IF gcc is on the host, but gcc + binutils need ~150 MB unpacked and our `/overlay` partition has ~90 MB free → installing it there blows up the partition.
 
-The Ingenic XBurst2 SoC requires very specific compiler flags (`-mnan=2008 -mfp64 -mabs=2008`) that the Creality stock gcc and most Debian cross-compilers don't get right. The reliable path is the Dafang-Hacks Ingenic toolchain on an x86_64 host. The full method is documented in [`assets/memos/MEMO_c_helper_ENG.md`](../../assets/memos/MEMO_c_helper_ENG.md) on the legacy `main` branch (the document this v2 rebuild is based on).
+The installer resolves `c_helper.so` in this priority order:
 
-Short version, in a GitHub Codespace:
+**1. Pre-staged at `/tmp/c_helper.so` (offline / explicit)** — if you `scp` it there before running the script, it's used as-is. Useful when:
+- The printer has no internet
+- You've built a hand-modified binary you want to test
+- You want to deploy the binary committed in this repo at `klipper/binaries/mipsel-3.4/c_helper.so` (an older known-good `v0.13.0+` build, kept for emergencies/factory-reset rollback)
 
 ```bash
+scp -O klipper/binaries/mipsel-3.4/c_helper.so root@192.168.1.94:/tmp/
+cat installs/install_klipper.sh | ssh root@192.168.1.94 'sh -s'
+```
+
+**2. Auto-downloaded from [klipper-ingenic-chelper](https://github.com/christianKEL/klipper-ingenic-chelper) (default)** — the script computes the short SHA of the Klipper commit it just checked out, then `wget`s the matching release asset:
+```
+https://github.com/christianKEL/klipper-ingenic-chelper/releases/download/klipper-<SHORT_SHA>/c_helper.so
+```
+
+If the release exists, you don't need to pre-stage anything. The companion repo (`klipper-ingenic-chelper`) auto-rebuilds `master` weekly and publishes any specific SHA on demand — see [its README](https://github.com/christianKEL/klipper-ingenic-chelper#readme).
+
+**3. Hard fail** — if `/tmp/c_helper.so` is missing AND the public release for this Klipper SHA doesn't exist (or the printer can't reach GitHub), the script aborts with instructions for both options 1 and 2. Trigger a build at <https://github.com/christianKEL/klipper-ingenic-chelper/actions> with `klipper_ref=<your-sha>`, wait ~5 min, re-run the script.
+
+### Rebuilding `c_helper.so` for a Klipper bump (advanced)
+
+If you bumped `KLIPPER_TAG` in the installer and want to publish a matching binary to the public repo, OR you're hacking on a Klipper fork:
+
+**Easy path** — trigger the public builder for any Klipper ref:
+```bash
+gh workflow run build.yml \
+    --repo christianKEL/klipper-ingenic-chelper \
+    -f klipper_ref=<your-tag-or-sha>
+```
+Wait for the run to finish, then the install script's auto-download path picks it up automatically next time.
+
+**Manual path** (for Klipper forks or air-gapped builds) — fork the [klipper-ingenic-chelper](https://github.com/christianKEL/klipper-ingenic-chelper) repo and change the `klipper_repo` workflow input, OR run the build steps yourself in any x86_64 Linux env (the workflow's [build.yml](https://github.com/christianKEL/klipper-ingenic-chelper/blob/main/.github/workflows/build.yml) is the canonical reference):
+
+```bash
+# In a GitHub Codespace, WSL, Docker, or any Ubuntu/Debian box:
 git clone --depth 1 https://github.com/Dafang-Hacks/mips-gcc520-glibc222-64bit-r3.2.1 ~/ingenic-toolchain
-git -C /workspaces/klipper -c advice.detachedHead=false checkout vX.Y.Z   # your target tag
-cd /workspaces/klipper/klippy/chelper && rm -f c_helper.so
-~/ingenic-toolchain/bin/mips-linux-gnu-gcc -shared -fPIC -O2 -mnan=2008 -mfp64 -mabs=2008 \
+git clone https://github.com/Klipper3d/klipper /tmp/klipper
+cd /tmp/klipper && git checkout <your-ref>
+cd klippy/chelper && rm -f c_helper.so
+~/ingenic-toolchain/bin/mips-linux-gnu-gcc \
+    -shared -fPIC -O2 -mnan=2008 -mfp64 -mabs=2008 \
     $(ls *.c) -o c_helper.so
 ~/ingenic-toolchain/bin/mips-linux-gnu-readelf -h c_helper.so | grep "Flags"
 # Expected: Flags: 0x70001407, noreorder, pic, cpic, nan2008, o32, mips32r2
 ```
 
-Then `gh codespace cp -c <name> remote:.../c_helper.so klipper/binaries/mipsel-3.4/c_helper.so` and commit.
+The original write-up of why these exact gcc flags matter is in [`assets/memos/MEMO_c_helper_ENG.md`](../../assets/memos/MEMO_c_helper_ENG.md) on the legacy `main` branch.
 
-### Fallback — install gcc on the printer
+### Why not just install gcc on the printer?
 
-If pre-built binaries become unmanageable, install gcc + make via Entware (~100 MB on the `/overlay` partition; check `df -h /overlay` first — leaves ~37 MB free with everything we'll install in Phases 4-9). Then klippy compiles c_helper.so on first start.
-
-```bash
-ssh root@192.168.1.94 '/opt/bin/opkg install gcc make'
-```
-
-**Not recommended** unless you're actively iterating on chelper — the disk-space cost is real and you risk filling the overlay.
+Tried in v1 and again briefly in v2 (commit `2737589`). The `gcc + binutils` Entware package needs ~150 MB unpacked, and our `/overlay` partition is at ~90 MB free once Phases 4-9 are installed. It doesn't fit. Even if it did, Klipper's chelper rebuild on every klippy restart adds ~30 s of build time and risks silent failures. The pre-built + reproducible-from-Actions path is faster and more auditable.
 
 ### Custom `klippy/extras/` Python modules
 

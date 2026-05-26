@@ -18,7 +18,11 @@
 #
 # What we DO install:
 #   - Klipper source at the pinned tag -> /usr/data/e5m-ck/klipper
-#   - Pre-built c_helper.so (from klipper/binaries/mipsel-3.4/) -> klippy/chelper/
+#   - Pre-built c_helper.so via one of three sources, in order:
+#       1. /tmp/c_helper.so (pre-staged via scp -O from local)
+#       2. Auto-download from the klipper-ingenic-chelper public release
+#          matching the resolved Klipper SHA
+#       3. Fail with instructions if neither is available
 #   - Custom klippy/extras/ Python modules (from klipper/extras/<name>.py)
 #     when pre-staged at /tmp/klipper_extras_<name>.py
 #   - python-can (pure-Python; only needed if any [mcu] uses canbus_uuid)
@@ -27,14 +31,21 @@
 #   - /etc/init.d/S55klipper_service (handled by scripts/sync.sh on the host)
 #   - /usr/data/printer_data/config/printer.cfg (handled by sync.sh)
 #
-# Usage (over SSH from local, after staging artifacts to /tmp/):
+# Usage:
+#   # Simplest (auto-downloads c_helper.so from public release):
+#   cat installs/install_klipper.sh | ssh root@printer 'sh -s'
+#
+#   # Pin a different Klipper ref:
+#   cat installs/install_klipper.sh | ssh root@printer 'sh -s -- --tag=v0.13.0'
+#
+#   # Offline / pre-stage the binary from local (overrides auto-download):
 #   scp -O klipper/binaries/mipsel-3.4/c_helper.so root@printer:/tmp/
-#   # Any custom klippy/extras modules:
+#   cat installs/install_klipper.sh | ssh root@printer 'sh -s'
+#
+#   # Any custom klippy/extras modules (always staged manually):
 #   for f in klipper/extras/*.py; do
 #     scp -O "$f" root@printer:/tmp/klipper_extras_$(basename "$f")
 #   done
-#   cat installs/install_klipper.sh | ssh root@printer 'sh -s'
-#   cat installs/install_klipper.sh | ssh root@printer 'sh -s -- --tag=master'
 
 set -eu
 
@@ -161,13 +172,41 @@ info "Configuring branch tracking (master → origin/master at $KLIPPER_DESC)...
 info "  branch: $(cd "$KLIPPER_DIR" && /opt/bin/git rev-parse --abbrev-ref HEAD)"
 
 # -- 4. Place pre-built c_helper.so --------------------------------------
+# Source priority:
+#   1. /tmp/c_helper.so pre-staged by the operator (offline-friendly, also
+#      the way to deploy a hand-built / locally-modified binary).
+#   2. Auto-download from the public klipper-ingenic-chelper release whose
+#      tag matches the Klipper short SHA we just checked out.
+#   3. Hard fail with instructions for both paths.
 info ""
 info "=== c_helper.so ==="
 CHELPER_DIR="$KLIPPER_DIR/klippy/chelper"
 CHELPER_DEST="$CHELPER_DIR/c_helper.so"
 CHELPER_SRC="/tmp/c_helper.so"
+CHELPER_RELEASE_REPO="christianKEL/klipper-ingenic-chelper"
 
-[ -f "$CHELPER_SRC" ] || die "/tmp/c_helper.so missing. From local: scp -O klipper/binaries/mipsel-3.4/c_helper.so root@printer:/tmp/"
+if [ ! -f "$CHELPER_SRC" ]; then
+    KLIPPER_SHORT_SHA=$(echo "$KLIPPER_SHA" | cut -c1-8)
+    CHELPER_URL="https://github.com/$CHELPER_RELEASE_REPO/releases/download/klipper-$KLIPPER_SHORT_SHA/c_helper.so"
+    info "/tmp/c_helper.so not pre-staged — attempting auto-download:"
+    info "  $CHELPER_URL"
+    # Use Entware's GNU wget explicitly — BusyBox wget can't complete
+    # TLS handshake with github.com (no TLS 1.2+ / SNI support).
+    if /opt/bin/wget -q -O "$CHELPER_SRC.partial" "$CHELPER_URL" && [ -s "$CHELPER_SRC.partial" ]; then
+        mv "$CHELPER_SRC.partial" "$CHELPER_SRC"
+        info "Auto-download OK ($(wc -c < "$CHELPER_SRC") bytes)"
+    else
+        rm -f "$CHELPER_SRC.partial"
+        die "No /tmp/c_helper.so and auto-download from $CHELPER_URL failed.
+Two ways to fix:
+  (a) Pre-stage from your local repo:
+        scp -O klipper/binaries/mipsel-3.4/c_helper.so root@<printer-ip>:/tmp/
+      then re-run this script.
+  (b) Trigger a build at https://github.com/$CHELPER_RELEASE_REPO/actions
+      with klipper_ref=$KLIPPER_SHORT_SHA, wait ~5 min for the release,
+      then re-run this script."
+    fi
+fi
 cp "$CHELPER_SRC" "$CHELPER_DEST"
 # Touch .c/.h sources to a far-past date so klippy's freshness check
 # considers the .so newer and skips its (gcc-requiring) rebuild attempt.
