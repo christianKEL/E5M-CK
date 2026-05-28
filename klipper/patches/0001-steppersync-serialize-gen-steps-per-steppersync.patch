@@ -1,0 +1,77 @@
+From: christianKEL <christian@e5m-ck>
+Date: 2026-05-27
+Subject: [PATCH] steppersync: serialize step generation per-steppersync
+
+Empirical workaround for the recurring
+
+    stepcompress o=<oid> i=<negative> c=1 a=0: Invalid sequence
+    Error in syncemitter '<stepper_y>' step generation
+    Internal error in stepcompress
+
+shutdown reproduced on Klipper master bd09e017 (Crash 1, t~55000s) and
+again on master 4bc56464 (Crash 2, t~31249s) on an Ender 5 Max +
+Creality Nebula Pad printing OrcaSlicer gcode that carries ~50000
+SET_VELOCITY_LIMIT SQUARE_CORNER_VELOCITY=... toggles.
+
+steppersyncmgr_gen_steps() normally fans out itersolve_generate_steps()
+to one background pthread per syncemitter and only joins at the end.
+For coreXY the X/Y syncemitters share the same trapq. A straight reading
+of itersolve_generate_steps() shows it only writes per-stepper state
+(struct stepper_kinematics, struct stepcompress) while reading the
+shared trapq, so a hard race is not obvious. But the bug is strongly
+timing-sensitive (8-15h to fire, always on stepper_y on this coreXY
+machine) and PR #7271's send-queue dump shows direction reversals at
+very low speed (interval > 400000, count=1) immediately before the
+failure -- exactly where any subtle inter-thread ordering between
+sibling iterative solvers would matter.
+
+This patch keeps the threading infrastructure intact but collapses the
+start-all / finalize-all phases into a single per-syncemitter loop:
+each syncemitter is signaled, joined, and only the next one is signaled
+after. Background threads still exist but at most one runs at a time
+within a given steppersync. CoreXY siblings can no longer overlap. If
+the crash stops reproducing under this patch we have isolated it to
+that overlap.
+
+Applies cleanly on top of Klipper master 4bc5646.
+
+---
+ klippy/chelper/steppersync.c | 16 ++++++----------
+ 1 file changed, 6 insertions(+), 10 deletions(-)
+
+diff --git a/klippy/chelper/steppersync.c b/klippy/chelper/steppersync.c
+--- a/klippy/chelper/steppersync.c
++++ b/klippy/chelper/steppersync.c
+@@ -409,27 +409,23 @@ steppersyncmgr_gen_steps(struct steppersyncmgr *ssm, double flush_time
+                 trapq_check_sentinels(tq);
+         }
+     }
+-    // Start step generation threads
++    // E5M-CK patch: serialize gen_steps per syncemitter so that sibling
++    // steppers sharing a trapq (e.g. coreXY X/Y) never run
++    // itersolve_generate_steps() concurrently. See
++    // klipper/patches/0001-steppersync-serialize-gen-steps-per-steppersync.patch
++    struct syncemitter *failed_se = NULL;
+     list_for_each_entry(ss, &ssm->ss_list, ssm_node) {
+         uint64_t flush_clock = clock_from_time(&ss->ce, flush_time);
+         uint64_t clear_clock = clock_from_time(&ss->ce, clear_history_time);
+         struct syncemitter *se;
+         list_for_each_entry(se, &ss->se_list, ss_node) {
+             se_start_gen_steps(se, gen_steps_time, flush_clock, clear_clock);
+-        }
+-    }
+-    // Wait for step generation threads to complete
+-    struct syncemitter *failed_se = NULL;
+-    list_for_each_entry(ss, &ssm->ss_list, ssm_node) {
+-        struct syncemitter *se;
+-        list_for_each_entry(se, &ss->se_list, ss_node) {
+             int32_t ret = se_finalize_gen_steps(se);
+             if (ret)
+                 failed_se = se;
+         }
+         if (failed_se)
+             continue;
+-        uint64_t flush_clock = clock_from_time(&ss->ce, flush_time);
+         steppersync_flush(ss, flush_clock);
+     }
+     return failed_se;
