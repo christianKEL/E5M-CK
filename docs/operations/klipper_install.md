@@ -74,6 +74,30 @@ If the release exists, you don't need to pre-stage anything. The companion repo 
 
 **3. Hard fail** — if `/tmp/c_helper.so` is missing AND the public release for this Klipper SHA doesn't exist (or the printer can't reach GitHub), the script aborts with instructions for both options 1 and 2. Trigger a build at <https://github.com/christianKEL/klipper-ingenic-chelper/actions> with `klipper_ref=<your-sha>`, wait ~5 min, re-run the script.
 
+### Local patches applied on top of the upstream Klipper tag
+
+In normal operation we run vanilla upstream Klipper. A small number of
+empirical fixes live under [`klipper/patches/`](../../klipper/patches/)
+and are applied to the source tree before the `c_helper.so` build.
+Today the list is:
+
+| Patch                                                                 | Touches              | Why                                                                                                                |
+|-----------------------------------------------------------------------|----------------------|--------------------------------------------------------------------------------------------------------------------|
+| `0001-steppersync-serialize-gen-steps-per-steppersync.patch`          | `chelper/steppersync.c` | Workaround for the recurring `Internal error in stepcompress` shutdown on coreXY at low-speed direction reversals. See the patch header. |
+
+When upstream eventually fixes one of these, drop the patch and rebuild.
+
+To rebuild `c_helper.so` against a patched source tree, apply patches
+in numeric order *after* `git clone` and *before* the build command in
+the next section:
+
+```bash
+cd /tmp/klipper
+for p in /path/to/E5M-CK/klipper/patches/*.patch; do
+    git apply --3way "$p"
+done
+```
+
 ### Rebuilding `c_helper.so` for a Klipper bump (advanced)
 
 If you bumped `KLIPPER_TAG` in the installer and want to publish a matching binary to the public repo, OR you're hacking on a Klipper fork:
