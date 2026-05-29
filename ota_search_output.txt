@@ -1,0 +1,71 @@
+﻿=== app-server strings related to OTA ===
+[%s]-[%s](%d) print work total time = %d
+killall 7z
+Invalid input: incorrect total size
+TotalLayer
+totalSize
+total_page
+total_pages
+totalPrint
+[%s]-[%s](%d) UploadLogProgress %d consumed_bytes = %lld total_bytes = %lld
+%slog-%s.7z
+rm -f %s*.7z && sync
+export_log_7z.temp
+/etc/ota_bin
+get_ota_current_version.sh
+local_ota_update.sh
+get_ota_board_name.sh
+/usr/bin/7z a -mmt1 -mx=1 -mhe=on -p'%s' %s %s %s %s %s %s
+/usr/bin/7z a -mmt1 -mx=1 -mhe=on %s %s %s %s %s %s
+linuxOTA
+mcu1OTA
+mcu2OTA
+mcu3OTA
+printTotalLayer
+totalTime
+total_time
+total_bytes >= consumed_bytes
+%-4s[%-*s] total: %ld, remain: %ld
+application/x-7z-compressed
+
+=== web-server strings related to OTA ===
+reqOtaInfo
+rm -f %s*.7z && sync
+%d-%02d-%02d_%02d-%02d-%02d_creality_log.7z
+[%s]-[%s](%d) 7z savePath = %s
+rotation_distance
+totalNum
+totalJob
+totalUsageTime
+totalUsageMaterial
+[%s]-[%s](%d) property id: reqOtaInfo, value: %d
+TotalLayer
+[%s]-[%s](%d) get ota info
+linuxOtaInfo
+mcuOtaInfo
+password
+Miss username or password
+Password wrong
+export_log_7z.temp
+/etc/ota_bin
+get_ota_current_version.sh
+local_ota_update.sh
+get_ota_board_name.sh
+/usr/bin/7z a -mmt1 -mx=1 -mhe=on -p'%s' %s %s %s %s %s %s
+/usr/bin/7z a -mmt1 -mx=1 -mhe=on %s %s %s %s %s %s
+linuxOTA
+mcu1OTA
+mcu2OTA
+mcu3OTA
+printTotalLayer
+totalTime
+total_time
+
+=== unique long string candidates for password ===
+ssh : awk: cmd. line:1: Unexpected token
+Au caractère Ligne:1 : 78
++ ... .94:/tmp/ ; ssh root@192.168.1.94 "sh /tmp/find_ota_password.sh" 2>&1 ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (awk: cmd. line:1: Unexpected token:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
