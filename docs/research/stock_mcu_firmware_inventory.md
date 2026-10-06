@@ -25,10 +25,10 @@ known-good 2023 version. To redeploy on the printer :
 
 ```bash
 scp -O klipper/firmwares/F004_mcu0_001_G32-mcu0_005_000.bin \
-    root@192.168.1.94:/usr/share/klipper/fw/F004/mcu0_001_G32-mcu0_005_000.bin
+    root@192.168.21.117:/usr/share/klipper/fw/F004/mcu0_001_G32-mcu0_005_000.bin
 scp -O klipper/firmwares/F004_noz0_001_G30-noz0_005_000.bin \
-    root@192.168.1.94:/usr/share/klipper/fw/F004/noz0_001_G30-noz0_005_000.bin
-ssh root@192.168.1.94 'md5sum /usr/share/klipper/fw/F004/*.bin'
+    root@192.168.21.117:/usr/share/klipper/fw/F004/noz0_001_G30-noz0_005_000.bin
+ssh root@192.168.21.117 'md5sum /usr/share/klipper/fw/F004/*.bin'
 # Verify MD5 matches values above
 ```
 Then power-cycle the printer ; `S13mcu_update` will detect the (potentially
@@ -62,20 +62,20 @@ flashing `mcu0` and `noz0` on every boot since first install of the unit.
 
 1. Verify both .bin files exist AND match the MD5 above. Run:
    ```bash
-   ssh root@192.168.1.94 'md5sum /usr/share/klipper/fw/F004/*.bin'
+   ssh root@192.168.21.117 'md5sum /usr/share/klipper/fw/F004/*.bin'
    ```
    Compare against this file.
 
 2. Capture the active MCU firmware version BEFORE flashing :
    ```bash
-   ssh root@192.168.1.94 'cat /tmp/.mcu_version 2>/dev/null'
+   ssh root@192.168.21.117 'cat /tmp/.mcu_version 2>/dev/null'
    ```
    Save for comparison after rollback.
 
 3. Backup the current `S13mcu_update` script (we have patches to it for
    `bed0_serial`) :
    ```bash
-   ssh root@192.168.1.94 'cp -p /etc/init.d/S13mcu_update /usr/data/backup/S13mcu_update.before-mainline-test'
+   ssh root@192.168.21.117 'cp -p /etc/init.d/S13mcu_update /usr/data/backup/S13mcu_update.before-mainline-test'
    ```
 
 ## After the flash test

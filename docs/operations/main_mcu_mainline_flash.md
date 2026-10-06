@@ -149,7 +149,7 @@ openocd -f openocd_main_mcu.cfg \
 ### Step 5 — Verify Klipper host connection
 
 ```bash
-ssh root@192.168.1.94 'awk "!/^Stats /" /usr/data/printer_data/logs/klippy.log | grep "Loaded MCU.*mcu" | tail -3'
+ssh root@192.168.21.117 'awk "!/^Stats /" /usr/data/printer_data/logs/klippy.log | grep "Loaded MCU.*mcu" | tail -3'
 ```
 
 Expected new output (compared to before) :

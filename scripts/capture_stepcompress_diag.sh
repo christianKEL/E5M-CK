@@ -6,7 +6,7 @@
 # enriched output from Klipper master PR #7271 (commit 4bc5646).
 #
 # Usage (run from your PC):
-#   ssh root@192.168.1.94 'sh -' < scripts/capture_stepcompress_diag.sh
+#   ssh root@192.168.21.117 'sh -' < scripts/capture_stepcompress_diag.sh
 # OR locally on the printer:
 #   sh capture_stepcompress_diag.sh
 #

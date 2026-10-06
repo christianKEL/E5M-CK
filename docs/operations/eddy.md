@@ -18,7 +18,7 @@ Phase 6 adds the BTT Eddy USB probe (RP2040 + LDC1612 inductive sensor) for Z ho
 bash scripts/backup.sh
 
 # (Local) push the UF2 to the printer's /tmp
-scp -O klipper/binaries/rp2040/btteddy.uf2 root@192.168.1.94:/tmp/
+scp -O klipper/binaries/rp2040/btteddy.uf2 root@192.168.21.117:/tmp/
 
 # (Local) push eddy.cfg and the updated printer.cfg (Z endstop → probe)
 bash scripts/sync.sh --apply
@@ -39,7 +39,7 @@ The Eddy now presents as a USB mass-storage device (label `RPI-RP2`) instead of 
 
 ```bash
 # (Local) run the install script
-cat installs/install_eddy.sh | ssh root@192.168.1.94 'sh -s'
+cat installs/install_eddy.sh | ssh root@192.168.21.117 'sh -s'
 ```
 
 The script:
@@ -51,7 +51,7 @@ The script:
 The detected serial-id is **printer-specific** (derived from the RP2040 chip ID at build time). Pull the patched eddy.cfg back into the repo so future deploys carry the right path:
 
 ```bash
-ssh root@192.168.1.94 'cat /usr/data/printer_data/config/eddy.cfg' > klipper/config/eddy.cfg
+ssh root@192.168.21.117 'cat /usr/data/printer_data/config/eddy.cfg' > klipper/config/eddy.cfg
 git add klipper/config/eddy.cfg
 git commit -m "eddy.cfg: pin serial-id for this printer"
 git push
@@ -60,9 +60,9 @@ git push
 ### 4. Restart Klipper
 
 ```bash
-ssh root@192.168.1.94 '/etc/init.d/S55klipper_service restart'
+ssh root@192.168.21.117 '/etc/init.d/S55klipper_service restart'
 sleep 12
-curl -s http://192.168.1.94/printer/info | jq .result.state   # expect: "ready"
+curl -s http://192.168.21.117/printer/info | jq .result.state   # expect: "ready"
 ```
 
 If Klipper errors with `Unable to open serial port /dev/serial/by-id/...`, the patched serial path is wrong — re-run `install_eddy.sh`.
@@ -229,7 +229,7 @@ the new values into the autosave block at the bottom of the LIVE
 
 ```bash
 # 1. Read the live autosave block
-ssh root@192.168.1.94 'awk "/^#\*# <----------/,0" /usr/data/printer_data/config/printer.cfg | sed "s/^#\*# //"' > /tmp/autosave.txt
+ssh root@192.168.21.117 'awk "/^#\*# <----------/,0" /usr/data/printer_data/config/printer.cfg | sed "s/^#\*# //"' > /tmp/autosave.txt
 
 # 2. Look at the [probe_eddy_current btt_eddy] and [temperature_probe btt_eddy]
 #    sections in /tmp/autosave.txt. Copy:
@@ -278,7 +278,7 @@ If the Eddy is broken or you want to test without it:
 #   - add: position_endstop: 0
 # Then:
 bash scripts/sync.sh --apply
-ssh root@192.168.1.94 '/etc/init.d/S55klipper_service restart'
+ssh root@192.168.21.117 '/etc/init.d/S55klipper_service restart'
 ```
 
 ## Known issues (from v1, may resurface)

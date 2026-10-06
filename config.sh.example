@@ -4,7 +4,7 @@
 # All scripts in `scripts/` source it via `scripts/lib/_common.sh`.
 
 # Hostname or IP of the printer on your LAN.
-PRINTER_HOST="192.168.1.94"
+PRINTER_HOST="192.168.21.117"
 
 # SSH user. Stock Creality firmware uses "root".
 SSH_USER="root"
