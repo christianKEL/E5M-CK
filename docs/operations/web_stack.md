@@ -53,28 +53,28 @@ bash scripts/backup.sh
 
 # (2) Push the Moonraker venv tarball (~17 MB) to /tmp on the printer
 scp -O moonraker/binaries/mipsel-3.4/moonraker-env.tar.gz \
-    root@192.168.21.117:/tmp/moonraker-env.tar.gz
+    root@192.168.1.117:/tmp/moonraker-env.tar.gz
 
 # (3) Run installers in order (each is idempotent)
-cat installs/install_moonraker.sh | ssh root@192.168.21.117 'sh -s'
-cat installs/install_fluidd.sh    | ssh root@192.168.21.117 'sh -s'
+cat installs/install_moonraker.sh | ssh root@192.168.1.117 'sh -s'
+cat installs/install_fluidd.sh    | ssh root@192.168.1.117 'sh -s'
 
 # (4) PREREQ for S99znginx: free port 80 by disabling Creality's web-server
 #     (and the other 9 obsolete Creality services). One-time operation,
 #     reversible via --restore. See docs/operations/creality_services.md.
-cat installs/creality_kill.sh | ssh root@192.168.21.117 'sh -s -- --list'
-cat installs/creality_kill.sh | ssh root@192.168.21.117 'sh -s -- --permanent'
+cat installs/creality_kill.sh | ssh root@192.168.1.117 'sh -s -- --list'
+cat installs/creality_kill.sh | ssh root@192.168.1.117 'sh -s -- --permanent'
 
 # (5) Push configs + init scripts via sync.sh
 bash scripts/sync.sh --apply
 
 # (6) Start the new services
-ssh root@192.168.21.117 '/etc/init.d/S56moonraker_service start'
-ssh root@192.168.21.117 '/etc/init.d/S99znginx start'
+ssh root@192.168.1.117 '/etc/init.d/S56moonraker_service start'
+ssh root@192.168.1.117 '/etc/init.d/S99znginx start'
 
 # (7) Verify
 bash scripts/verify.sh
-curl -s http://192.168.21.117/server/info | jq .
+curl -s http://192.168.1.117/server/info | jq .
 # Expected: klippy_state: ready, software_version starting with v0.13
 ```
 
@@ -111,10 +111,10 @@ and `/usr/bin/web-server` is still holding port 80.
 To turn the web stack off without removing files:
 
 ```bash
-ssh root@192.168.21.117 '/etc/init.d/S99znginx stop && /etc/init.d/S56moonraker_service stop'
+ssh root@192.168.1.117 '/etc/init.d/S99znginx stop && /etc/init.d/S56moonraker_service stop'
 # Creality web-server stays gone until reboot or manual restart.
 # To bring back the stock UI on port 80:
-ssh root@192.168.21.117 '/usr/bin/web-server &'
+ssh root@192.168.1.117 '/usr/bin/web-server &'
 ```
 
 Hard removal: `bash scripts/factory-reset.sh --confirm-i-mean-it` (removes everything under `/usr/data/e5m-ck/` and `/usr/data/venvs/`).

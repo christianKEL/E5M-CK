@@ -64,7 +64,7 @@ total_time
 === unique long string candidates for password ===
 ssh : awk: cmd. line:1: Unexpected token
 Au caractère Ligne:1 : 78
-+ ... .94:/tmp/ ; ssh root@192.168.21.117 "sh /tmp/find_ota_password.sh" 2>&1 ...
++ ... .94:/tmp/ ; ssh root@192.168.1.117 "sh /tmp/find_ota_password.sh" 2>&1 ...
 +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (awk: cmd. line:1: Unexpected token:String) [], RemoteException
     + FullyQualifiedErrorId : NativeCommandError

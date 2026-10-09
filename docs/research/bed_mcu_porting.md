@@ -76,10 +76,10 @@ MSP must be `0x20002000` (top of SRAM). Reset PC `0x08003000 + N` where N is the
 ```bash
 # Rename to match S13mcu_update's expected naming convention
 scp -O /c/Users/AUXINE/Downloads/bed_klipper_v008.bin \
-    root@192.168.21.117:/usr/share/klipper/fw/F004/bed0_110_G21-bed0_008_000.bin
+    root@192.168.1.117:/usr/share/klipper/fw/F004/bed0_110_G21-bed0_008_000.bin
 
 # Verify on printer
-ssh root@192.168.21.117 'ls -la /usr/share/klipper/fw/F004/ && md5sum /usr/share/klipper/fw/F004/bed0_110_G21-bed0_008_000.bin'
+ssh root@192.168.1.117 'ls -la /usr/share/klipper/fw/F004/ && md5sum /usr/share/klipper/fw/F004/bed0_110_G21-bed0_008_000.bin'
 
 # Operator: power-cycle the printer (full off-then-on)
 ```
@@ -87,7 +87,7 @@ ssh root@192.168.21.117 'ls -la /usr/share/klipper/fw/F004/ && md5sum /usr/share
 ### Post-boot reading
 
 ```bash
-ssh root@192.168.21.117 'cat /tmp/.mcu_version ; echo === ; cat /tmp/mcu_update.log'
+ssh root@192.168.1.117 'cat /tmp/.mcu_version ; echo === ; cat /tmp/mcu_update.log'
 ```
 
 ### Interpretation matrix

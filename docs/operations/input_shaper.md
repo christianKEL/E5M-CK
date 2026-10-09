@@ -98,16 +98,16 @@ After `install_klipper.sh` has run and deployed the three `.py` extras:
 
 ```bash
 # From the repo on the host laptop:
-scp -O klipper/scripts/gen_shaper_png.sh root@192.168.21.117:/tmp/
-scp -O klipper/scripts/gen_belts_png.sh  root@192.168.21.117:/tmp/
-scp -O klipper/scripts/graph_belts.py    root@192.168.21.117:/tmp/
-cat installs/install_input_shaper.sh | ssh root@192.168.21.117 'sh -s'
+scp -O klipper/scripts/gen_shaper_png.sh root@192.168.1.117:/tmp/
+scp -O klipper/scripts/gen_belts_png.sh  root@192.168.1.117:/tmp/
+scp -O klipper/scripts/graph_belts.py    root@192.168.1.117:/tmp/
+cat installs/install_input_shaper.sh | ssh root@192.168.1.117 'sh -s'
 
 # Push the config (sync.sh preserves the autosave block in printer.cfg):
 bash scripts/sync.sh --apply
 
 # Restart Klipper:
-ssh root@192.168.21.117 '/etc/init.d/S55klipper_service restart'
+ssh root@192.168.1.117 '/etc/init.d/S55klipper_service restart'
 ```
 
 Verify in Fluidd's console:
@@ -219,7 +219,7 @@ options:
   must be in the autosave for SAVE_CONFIG to keep working). Pull from
   the live with:
   ```bash
-  ssh root@192.168.21.117 'awk "/#\*# \[input_shaper\]/,/^[^#]/" /usr/data/printer_data/config/printer.cfg'
+  ssh root@192.168.1.117 'awk "/#\*# \[input_shaper\]/,/^[^#]/" /usr/data/printer_data/config/printer.cfg'
   ```
 
 ## Belt-tension comparison (CoreXY health check)

@@ -35,11 +35,11 @@ bash scripts/backup.sh
 # (2) PREREQ — disable Creality's display-server (and the 9 other
 #     obsolete services). If skipped, install_guppyscreen.sh fails fast
 #     because display-server still owns /dev/fb0.
-cat installs/creality_kill.sh | ssh root@192.168.21.117 'sh -s -- --list'
-cat installs/creality_kill.sh | ssh root@192.168.21.117 'sh -s -- --permanent'
+cat installs/creality_kill.sh | ssh root@192.168.1.117 'sh -s -- --list'
+cat installs/creality_kill.sh | ssh root@192.168.1.117 'sh -s -- --permanent'
 
 # (3) Push the install script + run it
-cat installs/install_guppyscreen.sh | ssh root@192.168.21.117 'sh -s'
+cat installs/install_guppyscreen.sh | ssh root@192.168.1.117 'sh -s'
 # This:
 #   - downloads guppyscreen-smallscreen.tar.gz from GitHub releases
 #   - extracts to /usr/data/guppyscreen/
@@ -53,7 +53,7 @@ cat installs/install_guppyscreen.sh | ssh root@192.168.21.117 'sh -s'
 bash scripts/sync.sh --apply
 
 # (5) Start GuppyScreen
-ssh root@192.168.21.117 '/etc/init.d/S99guppyscreen start'
+ssh root@192.168.1.117 '/etc/init.d/S99guppyscreen start'
 
 # (6) Look at the printer screen
 # You should see the GuppyScreen dashboard. Tap around.
@@ -95,7 +95,7 @@ After `S99guppyscreen start`:
 To restore the stock Creality UI:
 
 ```bash
-ssh root@192.168.21.117 '
+ssh root@192.168.1.117 '
   /etc/init.d/S99guppyscreen stop
   cp /usr/data/backup/guppyscreen-stock/S50dropbear.orig /etc/init.d/S50dropbear
   cp /usr/data/backup/guppyscreen-stock/S12boot_display.disabled /etc/init.d/S12boot_display
@@ -134,9 +134,9 @@ For E5M-CK v2, this aligns with our GitOps stance: the repo is the source of tru
 # 2. Bump GUPPY_TAG in installs/install_guppyscreen.sh
 # 3. Commit + push the repo change
 # 4. Re-run the installer on the printer:
-cat installs/install_guppyscreen.sh | ssh root@192.168.21.117 'sh -s -- --tag=X.Y.Z-beta'
+cat installs/install_guppyscreen.sh | ssh root@192.168.1.117 'sh -s -- --tag=X.Y.Z-beta'
 # 5. Restart:
-ssh root@192.168.21.117 '/etc/init.d/S99guppyscreen restart'
+ssh root@192.168.1.117 '/etc/init.d/S99guppyscreen restart'
 ```
 
 `install_guppyscreen.sh` is idempotent and will detect the version mismatch via the `.e5m-ck-version` stamp in `/usr/data/guppyscreen/`, stop the running Guppy, replace the install, and let you start the new version.

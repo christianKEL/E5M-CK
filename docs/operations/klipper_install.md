@@ -35,7 +35,7 @@ Phase 3 replaces the stock Creality klippy Python process with **upstream Klippe
 
 ```bash
 # From your local machine in the E5M-CK repo:
-cat installs/install_klipper.sh | ssh root@192.168.21.117 'sh -s'
+cat installs/install_klipper.sh | ssh root@192.168.1.117 'sh -s'
 ```
 
 The installer:
@@ -61,8 +61,8 @@ The installer resolves `c_helper.so` in this priority order:
 - You want to deploy the binary committed in this repo at `klipper/binaries/mipsel-3.4/c_helper.so` (an older known-good `v0.13.0+` build, kept for emergencies/factory-reset rollback)
 
 ```bash
-scp -O klipper/binaries/mipsel-3.4/c_helper.so root@192.168.21.117:/tmp/
-cat installs/install_klipper.sh | ssh root@192.168.21.117 'sh -s'
+scp -O klipper/binaries/mipsel-3.4/c_helper.so root@192.168.1.117:/tmp/
+cat installs/install_klipper.sh | ssh root@192.168.1.117 'sh -s'
 ```
 
 **2. Auto-downloaded from [klipper-ingenic-chelper](https://github.com/christianKEL/klipper-ingenic-chelper) (default)** — the script computes the short SHA of the Klipper commit it just checked out, then `wget`s the matching release asset:
@@ -159,7 +159,7 @@ Current modules:
 2. Stage to the printer's `/tmp/`:
    ```bash
    for f in klipper/extras/*.py; do
-     scp -O "$f" root@192.168.21.117:/tmp/klipper_extras_$(basename "$f")
+     scp -O "$f" root@192.168.1.117:/tmp/klipper_extras_$(basename "$f")
    done
    ```
 3. Re-run `installs/install_klipper.sh` — its `4b.` step copies anything
@@ -182,7 +182,7 @@ bash scripts/sync.sh --apply               # push:
 ### 3. Restart Klipper
 
 ```bash
-ssh root@192.168.21.117 '/etc/init.d/S55klipper_service restart'
+ssh root@192.168.1.117 '/etc/init.d/S55klipper_service restart'
 ```
 
 ### 4. Verify
@@ -214,19 +214,19 @@ Once you confirm klippy is running cleanly:
 
 ```bash
 # 1. Restore stock S55 init script
-ssh root@192.168.21.117 'cp /usr/data/backup/klipper-stock/S55klipper_service.orig /etc/init.d/S55klipper_service'
+ssh root@192.168.1.117 'cp /usr/data/backup/klipper-stock/S55klipper_service.orig /etc/init.d/S55klipper_service'
 
 # 2. Restore stock config
-ssh root@192.168.21.117 'cd /usr/data/printer_data/config && tar xzf /usr/data/backup/klipper-stock/config.stock.tar.gz'
+ssh root@192.168.1.117 'cd /usr/data/printer_data/config && tar xzf /usr/data/backup/klipper-stock/config.stock.tar.gz'
 
 # 3. Restart with stock klippy
-ssh root@192.168.21.117 '/etc/init.d/S55klipper_service restart'
+ssh root@192.168.1.117 '/etc/init.d/S55klipper_service restart'
 ```
 
 ### Hard: factory reset
 
 ```bash
-ssh root@192.168.21.117 '/etc/init.d/S58factoryreset reset'   # SSH method
+ssh root@192.168.1.117 '/etc/init.d/S58factoryreset reset'   # SSH method
 # or USB method: FAT32 stick with empty `factory_reset` file, power-cycle
 ```
 
